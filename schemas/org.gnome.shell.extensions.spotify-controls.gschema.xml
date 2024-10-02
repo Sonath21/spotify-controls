@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.spotify-controls" path="/org/gnome/shell/extensions/spotify-controls/">
+    <key name="position" type="s">
+      <default>'rightmost-left'</default>
+      <summary>Position on the top bar</summary>
+      <description>
+        Determines where the Spotify controls appear on the top bar.
+        Possible values are:
+        - 'far-left', 'mid-left', 'rightmost-left' (Left Side)
+        - 'middle-left', 'center', 'middle-right' (Center)
+        - 'leftmost-right', 'mid-right', 'far-right' (Right Side)
+      </description>
+    </key>
+  </schema>
+</schemalist>
+

@@ -1,0 +1,11 @@
+{
+  "uuid": "spotify-controls@Sonath21",
+  "name": "Spotify Controls",
+  "description": "Adds Spotify media controls to the top bar",
+  "shell-version": ["45", "46","47"],
+  "version": "1.0",
+  "settings-schema": "org.gnome.shell.extensions.spotify-controls",
+  "preferences": "prefs.js",
+  "extension-type": "shell-extension",
+  "url": "https://github.com/Sonath21/spotify-controls"
+}
