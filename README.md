@@ -41,7 +41,7 @@
 
 1. **Clone the Repository:**
    ```bash
-   git clone https://github.com/YourUsername/spotify-controls.git
+   git clone https://github.com/Sonath21/spotify-controls.git
 
 
    
