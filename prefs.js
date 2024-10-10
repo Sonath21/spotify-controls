@@ -16,53 +16,83 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import Gtk from "gi://Gtk";
-import Gio from "gi://Gio";
-import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
+import Adw from 'gi://Adw';
+import Gtk from 'gi://Gtk';
+import Gio from 'gi://Gio';
+import GObject from 'gi://GObject';
+import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-const SCHEMA_ID = 'org.gnome.shell.extensions.spotify-controls';
+// Define the PositionItem GObject class
+const PositionItem = GObject.registerClass(
+    {
+        Properties: {
+            'title': GObject.ParamSpec.string('title', 'Title', 'Title', GObject.ParamFlags.READWRITE, ''),
+            'value': GObject.ParamSpec.string('value', 'Value', 'Value', GObject.ParamFlags.READWRITE, ''),
+        },
+    },
+    class PositionItem extends GObject.Object {
+        _init(props = {}) {
+            super._init(props);
+        }
+    }
+);
 
 export default class SpotifyControlsPrefs extends ExtensionPreferences {
-    getSettings() {
-        const extensionDir = Gio.File.new_for_uri(import.meta.url).get_parent();
-        const schemasDir = extensionDir.get_child('schemas').get_path();
-
-        const schemaSource = Gio.SettingsSchemaSource.new_from_directory(
-            schemasDir,
-            Gio.SettingsSchemaSource.get_default(),
-            false
-        );
-
-        const schemaObj = schemaSource.lookup(SCHEMA_ID, false);
-
-        if (!schemaObj) {
-            throw new Error(`Schema ${SCHEMA_ID} could not be found for extension. Please check your installation.`);
-        }
-
-        return new Gio.Settings({ settings_schema: schemaObj });
-    }
-
-    getPreferencesWidget() {
+    fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
-        const extensionDir = Gio.File.new_for_uri(import.meta.url).get_parent();
-        const prefsXmlPath = extensionDir.get_child('prefs.xml').get_path();
+        window.set_default_size(600, 400);
+        window.set_title(_('Spotify Controls Preferences'));
 
-        const builder = new Gtk.Builder();
-        builder.add_from_file(prefsXmlPath);
+        const page = new Adw.PreferencesPage();
 
-        const prefsWidget = builder.get_object("prefs_widget");
-        const positionComboBox = builder.get_object("position_combobox");
-
-        const currentPosition = settings.get_string("position");
-        positionComboBox.set_active_id(currentPosition);
-
-        positionComboBox.connect("changed", (widget) => {
-            const newValue = widget.get_active_id();
-            settings.set_string("position", newValue);
+        const group = new Adw.PreferencesGroup({
+            title: _('General Settings'),
         });
 
-        return prefsWidget;
+        // Define the choices for the position setting using PositionItem instances
+        const positions = [
+            new PositionItem({ title: _('Far Left'), value: 'far-left' }),
+            new PositionItem({ title: _('Mid Left'), value: 'mid-left' }),
+            new PositionItem({ title: _('Rightmost Left'), value: 'rightmost-left' }),
+            new PositionItem({ title: _('Middle Left'), value: 'middle-left' }),
+            new PositionItem({ title: _('Center'), value: 'center' }),
+            new PositionItem({ title: _('Middle Right'), value: 'middle-right' }),
+            new PositionItem({ title: _('Leftmost Right'), value: 'leftmost-right' }),
+            new PositionItem({ title: _('Mid Right'), value: 'mid-right' }),
+            new PositionItem({ title: _('Far Right'), value: 'far-right' }),
+        ];
+
+        // Create a ListStore to hold the positions
+        const positionStore = new Gio.ListStore({ item_type: PositionItem });
+
+        // Append PositionItem instances to the ListStore
+        positions.forEach(pos => positionStore.append(pos));
+
+        // Create the ComboRow for selecting the position
+        const positionComboRow = new Adw.ComboRow({
+            title: _('Indicator Position'),
+            subtitle: _('Select the position of the Spotify controls in the top bar'),
+            model: positionStore,
+            expression: Gtk.PropertyExpression.new(PositionItem, null, 'title'),
+        });
+
+        // Set the selected item based on the current setting
+        const currentPositionValue = settings.get_string('position');
+        const currentIndex = positions.findIndex(pos => pos.value === currentPositionValue);
+        positionComboRow.set_selected(currentIndex >= 0 ? currentIndex : 0);
+
+        // Connect the 'notify::selected' signal to update the settings
+        positionComboRow.connect('notify::selected', (row) => {
+            const selectedIndex = row.get_selected();
+            const selectedItem = positionStore.get_item(selectedIndex);
+            const selectedPosition = selectedItem.value;
+            settings.set_string('position', selectedPosition);
+        });
+
+        group.add(positionComboRow);
+        page.add(group);
+        window.add(page);
+        window.show();
     }
 }
-
