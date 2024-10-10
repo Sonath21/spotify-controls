@@ -8,7 +8,6 @@
 - **Playback Controls:** Includes play/pause, next, and previous buttons for seamless music management.
 - **Dynamic Visibility:** The indicator appears in the top bar only when Spotify is running.
 - **Customizable Position:** Choose where the Spotify Controls appear in the top bar (e.g., far-left, center, far-right).
-- **Lightweight & Responsive:** Designed to have minimal impact on system performance.
 
 ## Screenshots
 
@@ -32,7 +31,7 @@
      *Note: The package name may vary based on your Linux distribution.*
 
 3. **Visit the Extension Page:**
-   - Navigate to the [Spotify Controls Extension](https://extensions.gnome.org/extension/your-extension-id/) on [extensions.gnome.org](https://extensions.gnome.org/).
+   - Navigate to the [Spotify Controls Extension](https://extensions.gnome.org/extension/7406/spotify-controls/) on [extensions.gnome.org](https://extensions.gnome.org/).
 
 4. **Toggle the Switch:**
    - Click the toggle switch to install the extension. You may be prompted to confirm the installation.
