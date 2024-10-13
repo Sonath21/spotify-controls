@@ -16,7 +16,6 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Importing required GI modules using ESModules syntax
 import St from 'gi://St';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -26,13 +25,10 @@ import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
-// Importing the base Extension class and gettext for translations
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
-// Removed: const Me = Gio.File.new_for_uri(import.meta.url).get_parent().get_path();
-
 // Debugging flag and function to control debug logging
-const DEBUG = true;
+const DEBUG = false;
 
 /**
  * Logs debug messages to the GNOME Shell log if debugging is enabled.
@@ -68,16 +64,29 @@ var SpotifyIndicator = GObject.registerClass(
         /**
          * Constructor for SpotifyIndicator.
          * @param {string} extensionPath - The path to the extension's directory.
+         * @param {string} controlsPosition - Position of playback controls ('left' or 'right').
          */
-        _init(extensionPath) {
+        _init(extensionPath, controlsPosition) {
             super._init(0.0, 'Spotify Controls');
             logDebug('SpotifyIndicator initialized');
 
+            this.controlsPosition = controlsPosition; // Store the controls position setting
             this._signalSubscriptionId = null;
 
-            this._buildUI(extensionPath);
+            this._buildUI(extensionPath); // Build the UI with the specified controls position
 
             this._monitorSpotifyPresence();
+
+            // Connect the click event to handle activation
+            this.connect('button-press-event', this._onExtensionClicked.bind(this));
+        }
+
+        /**
+         * Helper function to create a separator.
+         * @returns {St.Label} - A new St.Label instance acting as a separator.
+         */
+        _createSeparator() {
+            return new St.Label({ text: ' ' });
         }
 
         /**
@@ -91,27 +100,8 @@ var SpotifyIndicator = GObject.registerClass(
             let hbox = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
             this.add_child(hbox); // Add the box layout to the PanelMenu.Button
 
-            // Spotify icon - Load the SVG from the icons directory using extensionPath
-            this.spotifyIcon = new St.Icon({
-                gicon: Gio.icon_new_for_string(`${extensionPath}/icons/spotify.svg`), // Path to the Spotify SVG icon
-                icon_size: 16,
-                style_class: 'spotify-icon',
-            });
-            hbox.add_child(this.spotifyIcon);
-
-            // Separator - Adds spacing between UI elements
-            hbox.add_child(new St.Label({ text: ' ' }));
-
-            // Artist and Song Title label
-            this.trackLabel = new St.Label({
-                text: _('No Track Playing'),
-                y_expand: true,
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-            hbox.add_child(this.trackLabel);
-
-            // Separator for spacing
-            hbox.add_child(new St.Label({ text: ' ' }));
+            // Create a container for playback controls
+            let controlsBox = new St.BoxLayout({ style_class: 'spotify-controls-box' });
 
             // Create the control buttons: Previous, Play/Pause, Next
             this.prevButton = new St.Button({
@@ -127,16 +117,125 @@ var SpotifyIndicator = GObject.registerClass(
                 child: new St.Icon({ icon_name: 'media-skip-forward-symbolic' }),
             });
 
-            hbox.add_child(this.prevButton);
-            hbox.add_child(this.playPauseButton);
-            hbox.add_child(this.nextButton);
-
             // Connect the 'clicked' signal of each button to their respective handler functions
             this.prevButton.connect('clicked', () => this._sendMPRISCommand('Previous'));
             this.playPauseButton.connect('clicked', () => this._sendMPRISCommand('PlayPause'));
             this.nextButton.connect('clicked', () => this._sendMPRISCommand('Next'));
 
-            logDebug('UI built');
+            // Add buttons to the controlsBox
+            controlsBox.add_child(this.prevButton);
+            controlsBox.add_child(this.playPauseButton);
+            controlsBox.add_child(this.nextButton);
+
+            // Spotify icon - Load the SVG from the icons directory using extensionPath
+            this.spotifyIcon = new St.Icon({
+                gicon: Gio.icon_new_for_string(`${extensionPath}/icons/spotify.svg`), 
+                icon_size: 16,
+                style_class: 'spotify-icon',
+            });
+
+            // Artist and Song Title label
+            this.trackLabel = new St.Label({
+                text: _('No Track Playing'),
+                y_expand: true,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+
+            // Based on controlsPosition, arrange the UI elements
+            if (this.controlsPosition === 'left') {
+                // Add playback controls first
+                hbox.add_child(controlsBox);
+                hbox.add_child(this._createSeparator()); 
+                hbox.add_child(this.spotifyIcon);
+                hbox.add_child(this._createSeparator()); 
+                hbox.add_child(this.trackLabel);
+            } else {
+                // Add playback controls last (default behavior)
+                hbox.add_child(this.spotifyIcon);
+                hbox.add_child(this._createSeparator()); 
+                hbox.add_child(this.trackLabel);
+                hbox.add_child(this._createSeparator()); 
+                hbox.add_child(controlsBox);
+            }
+
+            logDebug('UI built with controls positioned to the ' + this.controlsPosition);
+        }
+
+        /**
+         * Handles the click event on the extension.
+         * @param {Clutter.Actor} actor - The actor that received the event.
+         * @param {Clutter.Event} event - The event object.
+         */
+        _onExtensionClicked(actor, event) {
+            // Only handle left-clicks (primary button)
+            if (event.get_button() === Clutter.BUTTON_PRIMARY) {
+                this._activateSpotifyWindow();
+            }
+        }
+
+        /**
+         * Activates the Spotify window, bringing it to the foreground.
+         */
+        _activateSpotifyWindow() {
+            logDebug('Attempting to activate Spotify window');
+
+            // Retrieve all window actors
+            let windowActors = global.get_window_actors();
+
+            // Flag to check if Spotify window is found
+            let spotifyFound = false;
+
+            for (let actor of windowActors) {
+                let window = actor.get_meta_window();
+                let wmClass = window.get_wm_class();
+
+                // Log detailed information about each window
+                logDebug(`Window WM_CLASS: ${JSON.stringify(wmClass)} (Type: ${typeof wmClass})`);
+                logDebug(`Window Title: ${window.get_title()} (Type: ${typeof window.get_title()})`);
+                logDebug(`Window Workspace: ${window.get_workspace()} (Type: ${typeof window.get_workspace()})`);
+
+                let isSpotify = false;
+
+                if (Array.isArray(wmClass)) {
+                    // If wmClass is an array, check if any element matches 'spotify'
+                    isSpotify = wmClass.some(cls => cls.toLowerCase() === 'spotify');
+                } else if (typeof wmClass === 'string') {
+                    // If wmClass is a string, check if it matches 'spotify'
+                    isSpotify = wmClass.toLowerCase() === 'spotify';
+                }
+
+                if (isSpotify) {
+                    // Validate that 'window' has the 'activate' method
+                    if (typeof window.activate !== 'function') {
+                        logDebug('Window does not have activate method. Skipping.');
+                        continue;
+                    }
+
+                    try {
+                        // If 'is_minimized' exists, handle minimization
+                        if (typeof window.is_minimized === 'function') {
+                            if (window.is_minimized()) {
+                                window.unminimize(global.get_current_time());
+                                logDebug('Spotify window unminimized');
+                            }
+                        }
+
+                        // Activate (focus) the window
+                        window.activate(global.get_current_time());
+                        logDebug('Spotify window activated');
+                        spotifyFound = true;
+                        break; // Exit the loop once Spotify is found and activated
+                    } catch (e) {
+                        logError(e, 'Failed to activate Spotify window');
+                    }
+                }
+            }
+
+            if (!spotifyFound) {
+                logDebug('Spotify window not found.');
+                // Optionally, launch Spotify if it's not running
+                // this._launchSpotify();
+            }
         }
 
         /**
@@ -235,7 +334,7 @@ var SpotifyIndicator = GObject.registerClass(
                     SPOTIFY_OBJECT_PATH,
                     PROPERTIES_INTERFACE,
                     'Get',
-                    new GLib.Variant('(ss)', [MPRIS_PLAYER_INTERFACE, 'PlaybackStatus']), // Parameters for the method
+                    new GLib.Variant('(ss)', [MPRIS_PLAYER_INTERFACE, 'PlaybackStatus']), 
                     GLib.VariantType.new('(v)'), // Expected return type
                     Gio.DBusCallFlags.NONE,
                     -1,
@@ -423,7 +522,10 @@ export default class SpotifyControlsExtension extends Extension {
     enable() {
         logDebug('Enabling SpotifyControlsExtension');
         this._settings = this.getSettings(); // Access settings via the base class method
-        this._settingsChangedId = this._settings.connect('changed::position', this._onSettingsChanged.bind(this));
+
+        // Connect to changes in 'position' and 'controls-position' settings
+        this._positionChangedId = this._settings.connect('changed::position', this._onSettingsChanged.bind(this));
+        this._controlsPositionChangedId = this._settings.connect('changed::controls-position', this._onSettingsChanged.bind(this));
 
         this._updateIndicator();
     }
@@ -437,11 +539,11 @@ export default class SpotifyControlsExtension extends Extension {
             spotifyIndicator = null;
         }
 
-        // Pass this.path to the SpotifyIndicator
-        spotifyIndicator = new SpotifyIndicator(this.path);
-
+        // Retrieve settings for indicator position and controls position
         let position = this._settings.get_string('position');
+        let controlsPosition = this._settings.get_string('controls-position');
 
+        // Validate 'position' setting
         const validPositions = [
             'far-left',
             'mid-left',
@@ -455,9 +557,18 @@ export default class SpotifyControlsExtension extends Extension {
         ];
 
         if (!validPositions.includes(position)) {
-            position = 'rightmost-left';
+            position = 'rightmost-left'; // Default to 'rightmost-left' if invalid
         }
 
+        // Validate 'controls-position' setting
+        if (controlsPosition !== 'left' && controlsPosition !== 'right') {
+            controlsPosition = 'right'; // Default to 'right' if invalid
+        }
+
+        // Pass both 'extensionPath' and 'controlsPosition' to SpotifyIndicator
+        spotifyIndicator = new SpotifyIndicator(this.path, controlsPosition);
+
+        // Determine which box (left, center, right) to add the indicator to and its offset
         let boxName;
         let offset = null;
 
@@ -508,11 +619,11 @@ export default class SpotifyControlsExtension extends Extension {
     }
 
     /**
-     * Callback function when the 'position' setting changes.
-     * Updates the indicator's position accordingly.
+     * Callback function when either 'position' or 'controls-position' setting changes.
+     * Updates the indicator's position or layout accordingly.
      */
     _onSettingsChanged() {
-        logDebug('Settings changed: updating indicator position');
+        logDebug('Settings changed: updating indicator');
         this._updateIndicator();
     }
 
@@ -527,9 +638,15 @@ export default class SpotifyControlsExtension extends Extension {
             spotifyIndicator = null;
         }
 
-        if (this._settingsChangedId) {
-            this._settings.disconnect(this._settingsChangedId);
-            this._settingsChangedId = null;
+        // Disconnect signal handlers for settings changes
+        if (this._positionChangedId) {
+            this._settings.disconnect(this._positionChangedId);
+            this._positionChangedId = null;
+        }
+
+        if (this._controlsPositionChangedId) {
+            this._settings.disconnect(this._controlsPositionChangedId);
+            this._controlsPositionChangedId = null;
         }
 
         this._settings = null;
