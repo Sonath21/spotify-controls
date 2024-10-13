@@ -12,6 +12,12 @@
         - 'leftmost-right', 'mid-right', 'far-right' (Right Side)
       </description>
     </key>
+    <key name="controls-position" type="s">
+      <default>'right'</default>
+      <summary>Playback Controls Position</summary>
+      <description>
+        Specify where the playback controls should appear: 'left' or 'right' of the track info.
+      </description>
+    </key>
   </schema>
 </schemalist>
-
