@@ -22,9 +22,12 @@ import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-// Define the PositionItem GObject class
+/**
+ * Define the PositionItem GObject class for Indicator Position choices.
+ */
 const PositionItem = GObject.registerClass(
     {
+        GTypeName: 'SpotifyControlsPositionItem',
         Properties: {
             'title': GObject.ParamSpec.string('title', 'Title', 'Title', GObject.ParamFlags.READWRITE, ''),
             'value': GObject.ParamSpec.string('value', 'Value', 'Value', GObject.ParamFlags.READWRITE, ''),
@@ -37,20 +40,52 @@ const PositionItem = GObject.registerClass(
     }
 );
 
+/**
+ * Define the ControlsPositionItem GObject class for Playback Controls Position choices.
+ */
+const ControlsPositionItem = GObject.registerClass(
+    {
+        GTypeName: 'SpotifyControlsControlsPositionItem',
+        Properties: {
+            'title': GObject.ParamSpec.string('title', 'Title', 'Title', GObject.ParamFlags.READWRITE, ''),
+            'value': GObject.ParamSpec.string('value', 'Value', 'Value', GObject.ParamFlags.READWRITE, ''),
+        },
+    },
+    class ControlsPositionItem extends GObject.Object {
+        _init(props = {}) {
+            super._init(props);
+        }
+    }
+);
+
+/**
+ * SpotifyControlsPrefs class handles the preferences window for the extension.
+ */
 export default class SpotifyControlsPrefs extends ExtensionPreferences {
+    /**
+     * Fills the preferences window with necessary widgets and settings.
+     * @param {Gtk.Window} window - The preferences window.
+     */
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
+        // Set window properties
         window.set_default_size(600, 400);
         window.set_title(_('Spotify Controls Preferences'));
 
+        // Create the main preferences page
         const page = new Adw.PreferencesPage();
 
+        // Create a preferences group for general settings
         const group = new Adw.PreferencesGroup({
             title: _('General Settings'),
         });
 
-        // Define the choices for the position setting using PositionItem instances
+        /**
+         * Indicator Position Section
+         */
+
+        // Define the choices for the indicator position using PositionItem instances
         const positions = [
             new PositionItem({ title: _('Far Left'), value: 'far-left' }),
             new PositionItem({ title: _('Mid Left'), value: 'mid-left' }),
@@ -63,13 +98,13 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
             new PositionItem({ title: _('Far Right'), value: 'far-right' }),
         ];
 
-        // Create a ListStore to hold the positions
+        // Create a ListStore to hold the indicator positions
         const positionStore = new Gio.ListStore({ item_type: PositionItem });
 
         // Append PositionItem instances to the ListStore
         positions.forEach(pos => positionStore.append(pos));
 
-        // Create the ComboRow for selecting the position
+        // Create the ComboRow for selecting the indicator position
         const positionComboRow = new Adw.ComboRow({
             title: _('Indicator Position'),
             subtitle: _('Select the position of the Spotify controls in the top bar'),
@@ -77,20 +112,64 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
             expression: Gtk.PropertyExpression.new(PositionItem, null, 'title'),
         });
 
-        // Set the selected item based on the current setting
+        // Retrieve the current position setting
         const currentPositionValue = settings.get_string('position');
         const currentIndex = positions.findIndex(pos => pos.value === currentPositionValue);
-        positionComboRow.set_selected(currentIndex >= 0 ? currentIndex : 0);
+        positionComboRow.set_selected(currentIndex >= 0 ? currentIndex : 0); // Default to first option if not found
 
-        // Connect the 'notify::selected' signal to update the settings
+        // Connect the 'notify::selected' signal to update the settings when selection changes
         positionComboRow.connect('notify::selected', (row) => {
             const selectedIndex = row.get_selected();
             const selectedItem = positionStore.get_item(selectedIndex);
-            const selectedPosition = selectedItem.value;
-            settings.set_string('position', selectedPosition);
+            if (selectedItem) {
+                const selectedPosition = selectedItem.value;
+                settings.set_string('position', selectedPosition);
+            }
         });
 
+        // Add the Indicator Position ComboRow to the group
         group.add(positionComboRow);
+
+        /**
+         * Playback Controls Position Section
+         */
+
+        // Define the choices for playback controls position using ControlsPositionItem instances
+        const controlsPositions = [
+            new ControlsPositionItem({ title: _('Left'), value: 'left' }),
+            new ControlsPositionItem({ title: _('Right'), value: 'right' }),
+        ];
+
+        // Create a ListStore to hold the playback controls positions
+        const controlsPositionStore = new Gio.ListStore({ item_type: ControlsPositionItem });
+
+        // Append ControlsPositionItem instances to the ListStore
+        controlsPositions.forEach(pos => controlsPositionStore.append(pos));
+
+        // Create the ComboRow for selecting playback controls position
+        const controlsPositionComboRow = new Adw.ComboRow({
+            title: _('Playback Controls Position'),
+            subtitle: _('Select whether the playback controls should appear on the left or right'),
+            model: controlsPositionStore,
+            expression: Gtk.PropertyExpression.new(ControlsPositionItem, null, 'title'),
+        });
+
+        // Retrieve the current playback controls position setting
+        const currentControlsPositionValue = settings.get_string('controls-position');
+        const controlsSelectedIndex = controlsPositions.findIndex(pos => pos.value === currentControlsPositionValue);
+        controlsPositionComboRow.set_selected(controlsSelectedIndex >= 0 ? controlsSelectedIndex : 1); // Default to 'Right' if not found
+
+        // Connect the 'notify::selected' signal to update the settings when selection changes
+        controlsPositionComboRow.connect('notify::selected', (row) => {
+            const selectedIndex = row.get_selected();
+            const selectedItem = controlsPositionStore.get_item(selectedIndex);
+            if (selectedItem) {
+                const selectedPosition = selectedItem.value;
+                settings.set_string('controls-position', selectedPosition);
+            }
+        });
+
+        group.add(controlsPositionComboRow);
         page.add(group);
         window.add(page);
         window.show();
