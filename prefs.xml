@@ -27,6 +27,14 @@
         </items>
       </object>
     </child>
+    <child>
+     <object class="GtkComboBoxText" id="controls_position_combobox">
+       <property name="tooltip-text">Position of Playback Controls</property>
+	 <items>
+	   <item id="left">Left</item>
+	   <item id="right">Right</item>
+	 </items>
+     </object>
+    </child>
   </object>
 </interface>
-
