@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 import St from 'gi://St';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -70,11 +69,10 @@ var SpotifyIndicator = GObject.registerClass(
             super._init(0.0, 'Spotify Controls');
             logDebug('SpotifyIndicator initialized');
 
-            this.controlsPosition = controlsPosition; // Store the controls position setting
+            this.controlsPosition = controlsPosition; 
             this._signalSubscriptionId = null;
 
-            this._buildUI(extensionPath); // Build the UI with the specified controls position
-
+            this._buildUI(extensionPath);
             this._monitorSpotifyPresence();
 
             // Connect the click event to handle activation
@@ -263,17 +261,7 @@ var SpotifyIndicator = GObject.registerClass(
             logDebug('Spotify appeared on D-Bus');
             this.show();
 
-            // Fetch the initial PlaybackStatus and Metadata from Spotify
-            try {
-                let playbackStatus = await this._getPlaybackStatus();
-                let metadata = await this._getMetadata();
-                this._updatePlayPauseIcon(playbackStatus);
-                this._updateTrackInfo(metadata);
-            } catch (e) {
-                logError(e, 'Failed to get initial PlaybackStatus or Metadata');
-            }
-
-            // Subscribe to the PropertiesChanged signal to receive real-time updates
+            // Subscribe to the PropertiesChanged signal first
             this._signalSubscriptionId = Gio.DBus.session.signal_subscribe(
                 SPOTIFY_BUS_NAME,
                 PROPERTIES_INTERFACE,
@@ -283,6 +271,37 @@ var SpotifyIndicator = GObject.registerClass(
                 Gio.DBusSignalFlags.NONE,
                 this._onPropertiesChanged.bind(this)
             );
+
+            // Fetch the initial PlaybackStatus and Metadata from Spotify after subscribing
+            try {
+                let playbackStatus = await this._getPlaybackStatus();
+                this._updatePlayPauseIcon(playbackStatus);
+                await this._retryFetchMetadata(); // Attempt to fetch valid metadata with retries
+            } catch (e) {
+                logError(e, 'Failed to get initial PlaybackStatus or Metadata');
+            }
+        }
+
+        /**
+         * Retry fetching Metadata with specified retries and delay.
+         * @param {number} retries - Number of retry attempts.
+         * @param {number} delay - Delay between retries in milliseconds.
+         */
+        async _retryFetchMetadata(retries = 3, delay = 500) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    let metadata = await this._getMetadata();
+                    if (metadata['xesam:artist'] && metadata['xesam:title']) {
+                        this._updateTrackInfo(metadata);
+                        logDebug('Successfully fetched valid Metadata on retry');
+                        return;
+                    }
+                } catch (e) {
+                    logError(e, 'Retry fetching Metadata failed');
+                }
+                await new Promise(res => setTimeout(res, delay));
+            }
+            logDebug('Failed to fetch valid Metadata after retries');
         }
 
         /**
@@ -317,8 +336,8 @@ var SpotifyIndicator = GObject.registerClass(
                         metadata[key] = metadataVariant[key].deep_unpack();
                     }
 
+                    logDebug(`PropertiesChanged Metadata: ${JSON.stringify(metadata)}`);
                     this._updateTrackInfo(metadata);
-                    logDebug('Metadata changed');
                 }
             }
         }
@@ -334,7 +353,7 @@ var SpotifyIndicator = GObject.registerClass(
                     SPOTIFY_OBJECT_PATH,
                     PROPERTIES_INTERFACE,
                     'Get',
-                    new GLib.Variant('(ss)', [MPRIS_PLAYER_INTERFACE, 'PlaybackStatus']), 
+                    new GLib.Variant('(ss)', [MPRIS_PLAYER_INTERFACE, 'PlaybackStatus']), // Parameters for the method
                     GLib.VariantType.new('(v)'), // Expected return type
                     Gio.DBusCallFlags.NONE,
                     -1,
@@ -344,8 +363,10 @@ var SpotifyIndicator = GObject.registerClass(
                             let response = connection.call_finish(result);
                             let [playbackStatusVariant] = response.deep_unpack();
                             let playbackStatus = playbackStatusVariant.deep_unpack();
+                            logDebug(`Fetched PlaybackStatus: ${playbackStatus}`);
                             resolve(playbackStatus);
                         } catch (e) {
+                            logError(e, 'Failed to fetch PlaybackStatus');
                             reject(e);
                         }
                     }
@@ -380,8 +401,10 @@ var SpotifyIndicator = GObject.registerClass(
                                 metadataUnpacked[key] = metadata[key].deep_unpack();
                             }
 
+                            logDebug(`Fetched Metadata: ${JSON.stringify(metadataUnpacked)}`);
                             resolve(metadataUnpacked);
                         } catch (e) {
+                            logError(e, 'Failed to fetch Metadata');
                             reject(e);
                         }
                     }
@@ -398,11 +421,13 @@ var SpotifyIndicator = GObject.registerClass(
             let title = this._recursiveUnpack(metadata['xesam:title']);
 
             let artist = _('Unknown Artist');
-            if (Array.isArray(artistArray) && artistArray.length > 0) {
+            if (Array.isArray(artistArray) && artistArray.length > 0 && artistArray[0].trim() !== '') {
                 artist = artistArray[0]; // Use the first artist in the array
             }
 
-            if (!title) {
+            if (title && title.trim() !== '') {
+                // Valid title
+            } else {
                 title = _('Unknown Title');
             }
 
