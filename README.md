@@ -42,5 +42,8 @@
    ```bash
    git clone https://github.com/Sonath21/spotify-controls.git
 
+## Patch notes
 
-   
+**Version 5**, added support for: 
+- Open spotify by pressing on the extension on the top bar
+- Option to move the playback controls to the left
