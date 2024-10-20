@@ -42,7 +42,7 @@
    ```bash
    git clone https://github.com/Sonath21/spotify-controls.git
 
-## Patch notes
+## Patch notes [extensions.gnome.org](https://extensions.gnome.org/extension/7406/spotify-controls/)
 
 **Version 5**, added support for: 
 - Open spotify by pressing on the extension on the top bar
