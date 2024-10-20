@@ -44,6 +44,11 @@
 
 ## Patch notes [extensions.gnome.org](https://extensions.gnome.org/extension/7406/spotify-controls/)
 
+**Version 8**, added support for:
+- Added option to hide playback controls from the top bar
+- Bug fix: the extension caused the distance between the default GNOME top bar icons to be bigger than normal.
+- Bug fix: when opening spotify for the first time, sometimes the name of the artist and the song did not load correctly on fedora environments.
+
 **Version 5**, added support for: 
 - Open spotify by pressing on the extension on the top bar
 - Option to move the playback controls to the left
