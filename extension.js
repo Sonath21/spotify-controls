@@ -64,18 +64,21 @@ var SpotifyIndicator = GObject.registerClass(
          * Constructor for SpotifyIndicator.
          * @param {string} extensionPath - The path to the extension's directory.
          * @param {string} controlsPosition - Position of playback controls ('left' or 'right').
+         * @param {Gio.Settings} settings - The settings object for the extension.
          */
-        _init(extensionPath, controlsPosition) {
+        _init(extensionPath, controlsPosition, settings) {
             super._init(0.0, 'Spotify Controls');
             logDebug('SpotifyIndicator initialized');
 
             this.controlsPosition = controlsPosition; 
+            this._settings = settings; 
             this._signalSubscriptionId = null;
+
+            this._activeTimeouts = [];
 
             this._buildUI(extensionPath);
             this._monitorSpotifyPresence();
 
-            // Connect the click event to handle activation
             this.connect('button-press-event', this._onExtensionClicked.bind(this));
         }
 
@@ -95,35 +98,38 @@ var SpotifyIndicator = GObject.registerClass(
             logDebug('Building UI');
 
             // Create the main horizontal box layout for the indicator
-            let hbox = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
-            this.add_child(hbox); // Add the box layout to the PanelMenu.Button
+            let hbox = new St.BoxLayout({ style_class: 'spotify-hbox' });
+            this.add_child(hbox); 
 
             // Create a container for playback controls
             let controlsBox = new St.BoxLayout({ style_class: 'spotify-controls-box' });
 
-            // Create the control buttons: Previous, Play/Pause, Next
-            this.prevButton = new St.Button({
-                style_class: 'system-status-icon',
-                child: new St.Icon({ icon_name: 'media-skip-backward-symbolic' }),
-            });
-            this.playPauseButton = new St.Button({
-                style_class: 'system-status-icon',
-                child: new St.Icon({ icon_name: 'media-playback-start-symbolic' }),
-            });
-            this.nextButton = new St.Button({
-                style_class: 'system-status-icon',
-                child: new St.Icon({ icon_name: 'media-skip-forward-symbolic' }),
-            });
+            // Conditionally add playback controls based on the setting
+            if (this._settings.get_boolean('show-playback-controls')) {
+                // Create the control buttons: Previous, Play/Pause, Next
+                this.prevButton = new St.Button({
+                    style_class: 'spotify-status-icon', 
+                    child: new St.Icon({ icon_name: 'media-skip-backward-symbolic' }),
+                });
+                this.playPauseButton = new St.Button({
+                    style_class: 'spotify-status-icon', 
+                    child: new St.Icon({ icon_name: 'media-playback-start-symbolic' }),
+                });
+                this.nextButton = new St.Button({
+                    style_class: 'spotify-status-icon', 
+                    child: new St.Icon({ icon_name: 'media-skip-forward-symbolic' }),
+                });
 
-            // Connect the 'clicked' signal of each button to their respective handler functions
-            this.prevButton.connect('clicked', () => this._sendMPRISCommand('Previous'));
-            this.playPauseButton.connect('clicked', () => this._sendMPRISCommand('PlayPause'));
-            this.nextButton.connect('clicked', () => this._sendMPRISCommand('Next'));
+                // Connect the 'clicked' signal of each button to their respective handler functions
+                this.prevButton.connect('clicked', () => this._sendMPRISCommand('Previous'));
+                this.playPauseButton.connect('clicked', () => this._sendMPRISCommand('PlayPause'));
+                this.nextButton.connect('clicked', () => this._sendMPRISCommand('Next'));
 
-            // Add buttons to the controlsBox
-            controlsBox.add_child(this.prevButton);
-            controlsBox.add_child(this.playPauseButton);
-            controlsBox.add_child(this.nextButton);
+                // Add buttons to the controlsBox
+                controlsBox.add_child(this.prevButton);
+                controlsBox.add_child(this.playPauseButton);
+                controlsBox.add_child(this.nextButton);
+            }
 
             // Spotify icon - Load the SVG from the icons directory using extensionPath
             this.spotifyIcon = new St.Icon({
@@ -141,19 +147,30 @@ var SpotifyIndicator = GObject.registerClass(
 
             // Based on controlsPosition, arrange the UI elements
             if (this.controlsPosition === 'left') {
-                // Add playback controls first
-                hbox.add_child(controlsBox);
-                hbox.add_child(this._createSeparator()); 
+                // Add playback controls first if they are enabled
+                if (this._settings.get_boolean('show-playback-controls')) {
+                    hbox.add_child(controlsBox);
+                    hbox.add_child(this._createSeparator());
+                    hbox.add_child(this._createSeparator());
+                    hbox.add_child(this._createSeparator());
+                }
                 hbox.add_child(this.spotifyIcon);
-                hbox.add_child(this._createSeparator()); 
+                hbox.add_child(this._createSeparator());
+                hbox.add_child(this._createSeparator());
+                hbox.add_child(this._createSeparator());
                 hbox.add_child(this.trackLabel);
             } else {
-                // Add playback controls last (default behavior)
+                // Add playback controls last (default behavior) if they are enabled
                 hbox.add_child(this.spotifyIcon);
-                hbox.add_child(this._createSeparator()); 
+                hbox.add_child(this._createSeparator());
+                hbox.add_child(this._createSeparator());
+                hbox.add_child(this._createSeparator());
                 hbox.add_child(this.trackLabel);
-                hbox.add_child(this._createSeparator()); 
-                hbox.add_child(controlsBox);
+                if (this._settings.get_boolean('show-playback-controls')) {
+                    hbox.add_child(this._createSeparator());
+                    hbox.add_child(this._createSeparator());
+                    hbox.add_child(controlsBox);
+                }
             }
 
             logDebug('UI built with controls positioned to the ' + this.controlsPosition);
@@ -276,7 +293,7 @@ var SpotifyIndicator = GObject.registerClass(
             try {
                 let playbackStatus = await this._getPlaybackStatus();
                 this._updatePlayPauseIcon(playbackStatus);
-                await this._retryFetchMetadata(); // Attempt to fetch valid metadata with retries
+                await this._retryFetchMetadata(); 
             } catch (e) {
                 logError(e, 'Failed to get initial PlaybackStatus or Metadata');
             }
@@ -299,9 +316,31 @@ var SpotifyIndicator = GObject.registerClass(
                 } catch (e) {
                     logError(e, 'Retry fetching Metadata failed');
                 }
-                await new Promise(res => setTimeout(res, delay));
+
+                // Await the cancellable sleep
+                await this._sleep(delay);
             }
             logDebug('Failed to fetch valid Metadata after retries');
+        }
+        
+          /**
+         * Sleeps for the specified delay in milliseconds.
+         * The timeout is tracked and can be cleared upon destruction.
+         * @param {number} delay - The delay in milliseconds.
+         * @returns {Promise<void>} - A Promise that resolves after the delay.
+         */
+        _sleep(delay) {
+            return new Promise((resolve) => {
+                const timeoutID = setTimeout(() => {
+                    resolve();
+                    // Remove the timeoutID from activeTimeouts once resolved
+                    const index = this._activeTimeouts.indexOf(timeoutID);
+                    if (index > -1) {
+                        this._activeTimeouts.splice(index, 1);
+                    }
+                }, delay);
+                this._activeTimeouts.push(timeoutID);
+            });
         }
 
         /**
@@ -422,7 +461,7 @@ var SpotifyIndicator = GObject.registerClass(
 
             let artist = _('Unknown Artist');
             if (Array.isArray(artistArray) && artistArray.length > 0 && artistArray[0].trim() !== '') {
-                artist = artistArray[0]; // Use the first artist in the array
+                artist = artistArray[0]; 
             }
 
             if (title && title.trim() !== '') {
@@ -454,7 +493,9 @@ var SpotifyIndicator = GObject.registerClass(
          */
         _updatePlayPauseIcon(playbackStatus) {
             let iconName = playbackStatus === 'Playing' ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
-            this.playPauseButton.child.icon_name = iconName;
+            if (this.playPauseButton) {
+                this.playPauseButton.child.icon_name = iconName;
+            }
             logDebug(`Updated play/pause icon to ${iconName}`);
         }
 
@@ -517,12 +558,17 @@ var SpotifyIndicator = GObject.registerClass(
                 this._signalSubscriptionId = null;
             }
 
+            // Clear all active timeouts
+            for (let timeoutID of this._activeTimeouts) {
+                clearTimeout(timeoutID);
+            }
+            this._activeTimeouts = [];
+
             super.destroy();
         }
     }
 );
 
-// Initialize the spotifyIndicator variable
 let spotifyIndicator = null;
 
 /**
@@ -536,7 +582,7 @@ export default class SpotifyControlsExtension extends Extension {
      * @param {Object} metadata - The metadata object provided by GNOME Shell.
      */
     constructor(metadata) {
-        super(metadata); // Pass the metadata to the base class constructor
+        super(metadata); 
         logDebug('Initializing SpotifyControlsExtension');
     }
 
@@ -546,11 +592,12 @@ export default class SpotifyControlsExtension extends Extension {
      */
     enable() {
         logDebug('Enabling SpotifyControlsExtension');
-        this._settings = this.getSettings(); // Access settings via the base class method
+        this._settings = this.getSettings(); 
 
-        // Connect to changes in 'position' and 'controls-position' settings
+        // Connect to changes in 'position', 'controls-position', and 'show-playback-controls' settings
         this._positionChangedId = this._settings.connect('changed::position', this._onSettingsChanged.bind(this));
         this._controlsPositionChangedId = this._settings.connect('changed::controls-position', this._onSettingsChanged.bind(this));
+        this._showControlsChangedId = this._settings.connect('changed::show-playback-controls', this._onSettingsChanged.bind(this));
 
         this._updateIndicator();
     }
@@ -590,8 +637,8 @@ export default class SpotifyControlsExtension extends Extension {
             controlsPosition = 'right'; // Default to 'right' if invalid
         }
 
-        // Pass both 'extensionPath' and 'controlsPosition' to SpotifyIndicator
-        spotifyIndicator = new SpotifyIndicator(this.path, controlsPosition);
+        // Pass 'extensionPath', 'controlsPosition', and 'settings' to SpotifyIndicator
+        spotifyIndicator = new SpotifyIndicator(this.path, controlsPosition, this._settings);
 
         // Determine which box (left, center, right) to add the indicator to and its offset
         let boxName;
@@ -644,7 +691,7 @@ export default class SpotifyControlsExtension extends Extension {
     }
 
     /**
-     * Callback function when either 'position' or 'controls-position' setting changes.
+     * Callback function when any relevant setting changes.
      * Updates the indicator's position or layout accordingly.
      */
     _onSettingsChanged() {
@@ -672,6 +719,11 @@ export default class SpotifyControlsExtension extends Extension {
         if (this._controlsPositionChangedId) {
             this._settings.disconnect(this._controlsPositionChangedId);
             this._controlsPositionChangedId = null;
+        }
+
+        if (this._showControlsChangedId) {
+            this._settings.disconnect(this._showControlsChangedId);
+            this._showControlsChangedId = null;
         }
 
         this._settings = null;
