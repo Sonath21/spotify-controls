@@ -169,8 +169,36 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
             }
         });
 
+        // Add the Playback Controls Position ComboRow to the group
         group.add(controlsPositionComboRow);
+
+        /**
+         * Show Playback Controls Toggle
+         */
+
+        // Create a switch row for showing/hiding playback controls
+        const showControlsSwitch = new Adw.SwitchRow({
+            title: _('Show Playback Controls'),
+            subtitle: _('Toggle the visibility of the playback controls (Previous, Play/Pause, Next)'),
+            activatable: true,
+            active: settings.get_boolean('show-playback-controls'), 
+        });
+
+        // Bind the switch to the settings key for automatic synchronization
+        settings.bind(
+            'show-playback-controls',
+            showControlsSwitch,
+            'active', 
+            Gio.SettingsBindFlags.DEFAULT
+        );
+
+        // Add the switch row to the group
+        group.add(showControlsSwitch);
+
+        // Add the group to the preferences page
         page.add(group);
+
+        // Add the page to the window
         window.add(page);
         window.show();
     }
