@@ -1,12 +1,16 @@
-.panel-status-menu-box {
-    spacing: 3px; /* Adjust spacing between icons */
+.spotify-controls-box {
+     gap: 8px;    
 }
 
-.system-status-icon {
-    padding: 2px;
+.spotify-hbox {
+    gap: 6px; 
 }
 
-.system-status-icon StIcon {
+.spotify-status-icon {
+    padding: 4px;
+}
+
+.spotify-status-icon > StIcon {
     icon-size: 16px;
 }
 
@@ -14,4 +18,3 @@
     icon-size: 16px; 
     color: inherit; 
 }
-
