@@ -19,5 +19,12 @@
         Specify where the playback controls should appear: 'left' or 'right' of the track info.
       </description>
     </key>
+    <key name="show-playback-controls" type="b">
+      <default>true</default>
+      <summary>Show Playback Controls</summary>
+      <description>
+        Toggle the visibility (on/off) of the playback controls (Previous, Play/Pause, Next) in the Spotify indicator.
+      </description>
+    </key>
   </schema>
 </schemalist>
