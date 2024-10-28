@@ -8,6 +8,7 @@
 - **Playback Controls:** Includes play/pause, next, and previous buttons for seamless music management.
 - **Dynamic Visibility:** The indicator appears in the top bar only when Spotify is running.
 - **Customizable Position:** Choose where the Spotify Controls appear in the top bar (e.g., far-left, center, far-right).
+- **Volume Control via Scroll Wheel:** Adjust Spotify's volume by scrolling over the song title in the top bar.
 
 ## Screenshots
 

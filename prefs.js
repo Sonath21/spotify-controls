@@ -195,6 +195,29 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
         // Add the switch row to the group
         group.add(showControlsSwitch);
 
+        /**
+         * Enable Volume Control Toggle
+         */
+
+        // Create a switch row for enabling/disabling volume control
+        const enableVolumeControlSwitch = new Adw.SwitchRow({
+            title: _('Enable Volume Control'),
+            subtitle: _('Toggle the volume control feature using the scroll wheel over the song title'),
+            activatable: true,
+            active: settings.get_boolean('enable-volume-control'), 
+        });
+
+        // Bind the switch to the settings key for automatic synchronization
+        settings.bind(
+            'enable-volume-control',
+            enableVolumeControlSwitch,
+            'active', 
+            Gio.SettingsBindFlags.DEFAULT
+        );
+
+        // Add the switch row to the group
+        group.add(enableVolumeControlSwitch);
+
         // Add the group to the preferences page
         page.add(group);
 
