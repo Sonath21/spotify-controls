@@ -227,17 +227,17 @@ var SpotifyIndicator = GObject.registerClass(
                     }
 
                     try {
-                        // If 'is_minimized' exists, handle minimization
-                        if (typeof window.is_minimized === 'function') {
-                            if (window.is_minimized()) {
-                                window.unminimize(global.get_current_time());
-                                logDebug('Spotify window unminimized');
-                            }
+                        if (window.minimized) {
+                            window.unminimize();
+                            logDebug("Spotify window unminimized");
+                            // Activate (focus) the window
+                            window.activate(global.get_current_time());
+                            logDebug("Spotify window activated");
+                        } else  {
+                            window?.minimize();
+                            logDebug("Spotify window minimized");
                         }
 
-                        // Activate (focus) the window
-                        window.activate(global.get_current_time());
-                        logDebug('Spotify window activated');
                         spotifyFound = true;
                         break; // Exit the loop once Spotify is found and activated
                     } catch (e) {
