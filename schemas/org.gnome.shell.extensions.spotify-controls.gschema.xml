@@ -26,5 +26,12 @@
         Toggle the visibility (on/off) of the playback controls (Previous, Play/Pause, Next) in the Spotify indicator.
       </description>
     </key>
+    <key name="enable-volume-control" type="b">
+      <default>true</default>
+      <summary>Enable Volume Control</summary>
+      <description>
+        Toggle the volume control feature using the scroll wheel over the song title in the top bar.
+      </description>
+    </key>
   </schema>
 </schemalist>

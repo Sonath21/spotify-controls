@@ -145,6 +145,11 @@ var SpotifyIndicator = GObject.registerClass(
                 y_align: Clutter.ActorAlign.CENTER,
             });
 
+            // Add scroll event listener to trackLabel for volume control
+            if (this._settings.get_boolean('enable-volume-control')) {
+                this.connect('scroll-event', this._adjustVolume.bind(this));
+            }
+
             // Based on controlsPosition, arrange the UI elements
             if (this.controlsPosition === 'left') {
                 // Add playback controls first if they are enabled
@@ -527,6 +532,80 @@ var SpotifyIndicator = GObject.registerClass(
         }
 
         /**
+         * Adjusts the volume based on the scroll direction.
+         * @param {Clutter.Event} event - The scroll event.
+         */
+        _adjustVolume(actor, event) {
+            logDebug(`Scroll event detected for volume control`);
+            let direction = event.get_scroll_direction();
+            if (direction === Clutter.ScrollDirection.UP) {
+                this._sendMPRISVolumeCommand('Raise');
+            } else if (direction === Clutter.ScrollDirection.DOWN) {
+                this._sendMPRISVolumeCommand('Lower');
+            }
+        }
+
+        /**
+         * Sends an MPRIS volume command (e.g., 'Raise', 'Lower') to Spotify.
+         * @param {string} command - The MPRIS volume command to send.
+         */
+        _sendMPRISVolumeCommand(command) {
+            logDebug(`Sending MPRIS volume command: ${command}`);
+            
+            // First, get the current volume
+            Gio.DBus.session.call(
+                SPOTIFY_BUS_NAME,
+                SPOTIFY_OBJECT_PATH,
+                PROPERTIES_INTERFACE,
+                'Get',
+                new GLib.Variant('(ss)', [MPRIS_PLAYER_INTERFACE, 'Volume']),
+                GLib.VariantType.new('(v)'),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
+                (conn, res) => {
+                    try {
+                        let response = conn.call_finish(res);
+                        let [volumeVariant] = response.deep_unpack();
+                        let currentVolume = volumeVariant.deep_unpack();
+                        logDebug(`Current volume: ${currentVolume}`);
+
+                        // Adjust the volume based on the command
+                        let newVolume = currentVolume;
+                        if (command === 'Raise') {
+                            newVolume = Math.min(currentVolume + 0.1, 1.0); // Increase volume by 10%
+                        } else if (command === 'Lower') {
+                            newVolume = Math.max(currentVolume - 0.1, 0.0); // Decrease volume by 10%
+                        }
+
+                        // Set the new volume
+                        Gio.DBus.session.call(
+                            SPOTIFY_BUS_NAME,
+                            SPOTIFY_OBJECT_PATH,
+                            PROPERTIES_INTERFACE,
+                            'Set',
+                            new GLib.Variant('(ssv)', [MPRIS_PLAYER_INTERFACE, 'Volume', new GLib.Variant('d', newVolume)]),
+                            null,
+                            Gio.DBusCallFlags.NONE,
+                            -1,
+                            null,
+                            (conn, res) => {
+                                try {
+                                    conn.call_finish(res);
+                                    logDebug(`Volume set to ${newVolume}`);
+                                } catch (e) {
+                                    logError(e, `Failed to set volume to ${newVolume}`);
+                                }
+                            }
+                        );
+                    } catch (e) {
+                        logError(e, 'Failed to get current volume');
+                    }
+                }
+            );
+        }
+
+        /**
          * Callback function when Spotify vanishes from the D-Bus.
          * Hides the indicator and cleans up signal subscriptions.
          */
@@ -598,6 +677,7 @@ export default class SpotifyControlsExtension extends Extension {
         this._positionChangedId = this._settings.connect('changed::position', this._onSettingsChanged.bind(this));
         this._controlsPositionChangedId = this._settings.connect('changed::controls-position', this._onSettingsChanged.bind(this));
         this._showControlsChangedId = this._settings.connect('changed::show-playback-controls', this._onSettingsChanged.bind(this));
+        this._volumeControlChangedId = this._settings.connect('changed::enable-volume-control', this._onSettingsChanged.bind(this));
 
         this._updateIndicator();
     }
@@ -724,6 +804,11 @@ export default class SpotifyControlsExtension extends Extension {
         if (this._showControlsChangedId) {
             this._settings.disconnect(this._showControlsChangedId);
             this._showControlsChangedId = null;
+        }
+
+        if (this._volumeControlChangedId) {
+            this._settings.disconnect(this._volumeControlChangedId);
+            this._volumeControlChangedId = null;
         }
 
         this._settings = null;
