@@ -53,3 +53,7 @@
 **Version 5**, added support for: 
 - Open spotify by pressing on the extension on the top bar
 - Option to move the playback controls to the left
+
+## Contributors
+- **[her0](https://github.com/Her0-GitHub)** Added: "Volume Control via Scroll Wheel" feature.
+- **[AFCMS](https://github.com/AFCMS)** Added: Minimise Spotify window if it's not minimized when clicking the indicator.
