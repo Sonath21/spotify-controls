@@ -45,6 +45,10 @@
 
 ## Patch notes [extensions.gnome.org](https://extensions.gnome.org/extension/7406/spotify-controls/)
 
+**Version 9**, added support for:
+- Added "Volume Control via Scroll Wheel" feature - submitted by **[her0](https://github.com/Her0-GitHub)** 
+- Minimise Spotify window if it's not minimized when clicking on the extension - submitted by **[AFCMS](https://github.com/AFCMS)**
+
 **Version 8**, added support for:
 - Added option to hide playback controls from the top bar
 - Bug fix: the extension caused the distance between the default GNOME top bar icons to be bigger than normal.
@@ -56,4 +60,4 @@
 
 ## Contributors
 - **[her0](https://github.com/Her0-GitHub)** Added: "Volume Control via Scroll Wheel" feature.
-- **[AFCMS](https://github.com/AFCMS)** Added: Minimise Spotify window if it's not minimized when clicking the indicator.
+- **[AFCMS](https://github.com/AFCMS)** Added: Minimise Spotify window if it's not minimized when clicking on the extension.
