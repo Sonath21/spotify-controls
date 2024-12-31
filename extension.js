@@ -5,7 +5,7 @@
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+
 import St from 'gi://St';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -70,16 +71,25 @@ var SpotifyIndicator = GObject.registerClass(
             super._init(0.0, 'Spotify Controls');
             logDebug('SpotifyIndicator initialized');
 
-            this.controlsPosition = controlsPosition; 
-            this._settings = settings; 
+            this.controlsPosition = controlsPosition;
+            this._settings = settings;
             this._signalSubscriptionId = null;
 
+            // Initialize the _activeTimeouts array
             this._activeTimeouts = [];
+
+            // Store the extensionPath for later use
+            this.extensionPath = extensionPath;
 
             this._buildUI(extensionPath);
             this._monitorSpotifyPresence();
 
+            // Connect the 'button-press-event' to the updated handler
             this.connect('button-press-event', this._onExtensionClicked.bind(this));
+
+            // Connect to changes in 'show-spotify-icon' and 'show-track-info' settings
+            this._showIconChangedId = this._settings.connect('changed::show-spotify-icon', this._onShowIconChanged.bind(this));
+            this._showTrackInfoChangedId = this._settings.connect('changed::show-track-info', this._onShowTrackInfoChanged.bind(this));
         }
 
         /**
@@ -99,7 +109,7 @@ var SpotifyIndicator = GObject.registerClass(
 
             // Create the main horizontal box layout for the indicator
             let hbox = new St.BoxLayout({ style_class: 'spotify-hbox' });
-            this.add_child(hbox); 
+            this.add_child(hbox);
 
             // Create a container for playback controls
             let controlsBox = new St.BoxLayout({ style_class: 'spotify-controls-box' });
@@ -108,15 +118,15 @@ var SpotifyIndicator = GObject.registerClass(
             if (this._settings.get_boolean('show-playback-controls')) {
                 // Create the control buttons: Previous, Play/Pause, Next
                 this.prevButton = new St.Button({
-                    style_class: 'spotify-status-icon', 
+                    style_class: 'spotify-status-icon',
                     child: new St.Icon({ icon_name: 'media-skip-backward-symbolic' }),
                 });
                 this.playPauseButton = new St.Button({
-                    style_class: 'spotify-status-icon', 
-                    child: new St.Icon({ icon_name: 'media-playback-start-symbolic' }),
+                    style_class: 'spotify-status-icon',
+                    child: new St.Icon({ icon_name: 'media-playback-pause-symbolic' }), 
                 });
                 this.nextButton = new St.Button({
-                    style_class: 'spotify-status-icon', 
+                    style_class: 'spotify-status-icon',
                     child: new St.Icon({ icon_name: 'media-skip-forward-symbolic' }),
                 });
 
@@ -133,10 +143,19 @@ var SpotifyIndicator = GObject.registerClass(
 
             // Spotify icon - Load the SVG from the icons directory using extensionPath
             this.spotifyIcon = new St.Icon({
-                gicon: Gio.icon_new_for_string(`${extensionPath}/icons/spotify.svg`), 
+                gicon: Gio.icon_new_for_string(`${extensionPath}/icons/spotify.svg`),
                 icon_size: 16,
                 style_class: 'spotify-icon',
             });
+
+            // Initially set the visibility based on the settings
+            this.spotifyIcon.visible = this._settings.get_boolean('show-spotify-icon');
+
+            // Add the Spotify icon and separators to the UI
+            hbox.add_child(this.spotifyIcon);
+            hbox.add_child(this._createSeparator());
+            hbox.add_child(this._createSeparator());
+            hbox.add_child(this._createSeparator());
 
             // Artist and Song Title label
             this.trackLabel = new St.Label({
@@ -144,6 +163,9 @@ var SpotifyIndicator = GObject.registerClass(
                 y_expand: true,
                 y_align: Clutter.ActorAlign.CENTER,
             });
+
+            // Conditionally display the track info based on the setting
+            this.trackLabel.visible = this._settings.get_boolean('show-track-info');
 
             // Add scroll event listener to trackLabel for volume control
             if (this._settings.get_boolean('enable-volume-control')) {
@@ -159,17 +181,9 @@ var SpotifyIndicator = GObject.registerClass(
                     hbox.add_child(this._createSeparator());
                     hbox.add_child(this._createSeparator());
                 }
-                hbox.add_child(this.spotifyIcon);
-                hbox.add_child(this._createSeparator());
-                hbox.add_child(this._createSeparator());
-                hbox.add_child(this._createSeparator());
                 hbox.add_child(this.trackLabel);
             } else {
                 // Add playback controls last (default behavior) if they are enabled
-                hbox.add_child(this.spotifyIcon);
-                hbox.add_child(this._createSeparator());
-                hbox.add_child(this._createSeparator());
-                hbox.add_child(this._createSeparator());
                 hbox.add_child(this.trackLabel);
                 if (this._settings.get_boolean('show-playback-controls')) {
                     hbox.add_child(this._createSeparator());
@@ -182,22 +196,83 @@ var SpotifyIndicator = GObject.registerClass(
         }
 
         /**
+         * Callback function when the 'show-spotify-icon' setting changes.
+         * Shows or hides the Spotify icon based on the new setting.
+         */
+        _onShowIconChanged() {
+            const showIcon = this._settings.get_boolean('show-spotify-icon');
+            logDebug(`'show-spotify-icon' changed to ${showIcon}`);
+
+            if (this.spotifyIcon) {
+                this.spotifyIcon.visible = showIcon;
+                logDebug(`Spotify icon visibility set to ${showIcon}`);
+            } else if (showIcon) {
+                // If for some reason the icon wasn't created, create and add it
+                this.spotifyIcon = new St.Icon({
+                    gicon: Gio.icon_new_for_string(`${this.extensionPath}/icons/spotify.svg`),
+                    icon_size: 16,
+                    style_class: 'spotify-icon',
+                });
+                this.spotifyIcon.visible = showIcon;
+
+                // Add the Spotify icon to the UI
+                this.add_child_before(this.spotifyIcon, this.trackLabel);
+                this.add_child_after(this.spotifyIcon, this._createSeparator());
+                this.add_child_after(this.spotifyIcon, this._createSeparator());
+                this.add_child_after(this.spotifyIcon, this._createSeparator());
+
+                logDebug('Spotify icon created and shown');
+            }
+        }
+
+        /**
+         * Callback function when the 'show-track-info' setting changes.
+         * Shows or hides the Artist/Track information based on the new setting.
+         */
+        _onShowTrackInfoChanged() {
+            const showInfo = this._settings.get_boolean('show-track-info');
+            logDebug(`'show-track-info' changed to ${showInfo}`);
+
+            if (this.trackLabel) {
+                this.trackLabel.visible = showInfo;
+                logDebug(`Track info visibility set to ${showInfo}`);
+            }
+        }
+
+        /**
          * Handles the click event on the extension.
          * @param {Clutter.Actor} actor - The actor that received the event.
          * @param {Clutter.Event} event - The event object.
          */
         _onExtensionClicked(actor, event) {
-            // Only handle left-clicks (primary button)
-            if (event.get_button() === Clutter.BUTTON_PRIMARY) {
+            const button = event.get_button();
+            
+            // Retrieve user setting for enabling middle-click
+            const enableMiddleClick = this._settings.get_boolean('enable-middle-click');
+
+            if (button === Clutter.BUTTON_PRIMARY) {
+                // Left-click: Toggle Spotify window
                 this._activateSpotifyWindow();
+            } else if (button === Clutter.BUTTON_MIDDLE && enableMiddleClick) {
+                // Only do Play/Pause if middle-click is enabled
+                this._sendMPRISCommand('PlayPause')
+                    .catch(() => {
+                        // If PlayPause fails, attempt to launch Spotify
+                        this._launchSpotify();
+                    });
             }
         }
 
         /**
-         * Activates the Spotify window, bringing it to the foreground.
+         * Activates (or minimizes) the Spotify window, depending on user preferences
+         * and the current window state.
          */
         _activateSpotifyWindow() {
             logDebug('Attempting to activate Spotify window');
+
+            // Retrieve the user setting for whether to minimize on second click
+            const minimizeOnSecondClick = this._settings.get_boolean('minimize-on-second-click');
+            logDebug(`minimizeOnSecondClick = ${minimizeOnSecondClick}`);
 
             // Retrieve all window actors
             let windowActors = global.get_window_actors();
@@ -209,7 +284,7 @@ var SpotifyIndicator = GObject.registerClass(
                 let window = actor.get_meta_window();
                 let wmClass = window.get_wm_class();
 
-                // Log detailed information about each window
+                // Log details for debugging
                 logDebug(`Window WM_CLASS: ${JSON.stringify(wmClass)} (Type: ${typeof wmClass})`);
                 logDebug(`Window Title: ${window.get_title()} (Type: ${typeof window.get_title()})`);
                 logDebug(`Window Workspace: ${window.get_workspace()} (Type: ${typeof window.get_workspace()})`);
@@ -227,24 +302,30 @@ var SpotifyIndicator = GObject.registerClass(
                 if (isSpotify) {
                     // Validate that 'window' has the 'activate' method
                     if (typeof window.activate !== 'function') {
-                        logDebug('Window does not have activate method. Skipping.');
+                        logDebug('Window does not have an activate method. Skipping.');
                         continue;
                     }
 
                     try {
                         if (window.minimized) {
+                            // If the window is minimized, unminimize and activate
                             window.unminimize();
                             logDebug("Spotify window unminimized");
-                            // Activate (focus) the window
                             window.activate(global.get_current_time());
                             logDebug("Spotify window activated");
-                        } else  {
-                            window?.minimize();
-                            logDebug("Spotify window minimized");
+                        } else {
+                            // If it's not minimized and the user wants to
+                            // minimize on second click, do so. Otherwise, do nothing.
+                            if (minimizeOnSecondClick) {
+                                window.minimize();
+                                logDebug("Spotify window minimized");
+                            } else {
+                                logDebug("Spotify already in foreground; doing nothing.");
+                            }
                         }
 
                         spotifyFound = true;
-                        break; // Exit the loop once Spotify is found and activated
+                        break; // Exit once we handle the Spotify window
                     } catch (e) {
                         logError(e, 'Failed to activate Spotify window');
                     }
@@ -252,9 +333,27 @@ var SpotifyIndicator = GObject.registerClass(
             }
 
             if (!spotifyFound) {
-                logDebug('Spotify window not found.');
-                // Optionally, launch Spotify if it's not running
-                // this._launchSpotify();
+                logDebug('Spotify window not found. Attempting to launch Spotify to show its window.');
+
+                try {
+                    // Create a new subprocess to execute the 'spotify' command
+                    const subprocess = Gio.Subprocess.new(
+                        ['spotify'],
+                        Gio.SubprocessFlags.NONE
+                    );
+
+                    // Run the subprocess async
+                    subprocess.wait_async(null, (proc, res) => {
+                        try {
+                            proc.wait_finish(res);
+                            logDebug('Spotify launched successfully to show its window.');
+                        } catch (e) {
+                            logError(e, 'Failed to launch Spotify to show its window.');
+                        }
+                    });
+                } catch (e) {
+                    logError(e, 'Error while attempting to launch Spotify subprocess.', e);
+                }
             }
         }
 
@@ -298,7 +397,7 @@ var SpotifyIndicator = GObject.registerClass(
             try {
                 let playbackStatus = await this._getPlaybackStatus();
                 this._updatePlayPauseIcon(playbackStatus);
-                await this._retryFetchMetadata(); 
+                await this._retryFetchMetadata();
             } catch (e) {
                 logError(e, 'Failed to get initial PlaybackStatus or Metadata');
             }
@@ -327,8 +426,8 @@ var SpotifyIndicator = GObject.registerClass(
             }
             logDebug('Failed to fetch valid Metadata after retries');
         }
-        
-          /**
+
+        /**
          * Sleeps for the specified delay in milliseconds.
          * The timeout is tracked and can be cleared upon destruction.
          * @param {number} delay - The delay in milliseconds.
@@ -402,7 +501,7 @@ var SpotifyIndicator = GObject.registerClass(
                     Gio.DBusCallFlags.NONE,
                     -1,
                     null,
-                    (connection, result) => { // Callback after the call is complete
+                    (connection, result) => {
                         try {
                             let response = connection.call_finish(result);
                             let [playbackStatusVariant] = response.deep_unpack();
@@ -466,7 +565,7 @@ var SpotifyIndicator = GObject.registerClass(
 
             let artist = _('Unknown Artist');
             if (Array.isArray(artistArray) && artistArray.length > 0 && artistArray[0].trim() !== '') {
-                artist = artistArray[0]; 
+                artist = artistArray[0];
             }
 
             if (title && title.trim() !== '') {
@@ -497,7 +596,9 @@ var SpotifyIndicator = GObject.registerClass(
          * @param {string} playbackStatus - The current playback status ('Playing' or other).
          */
         _updatePlayPauseIcon(playbackStatus) {
-            let iconName = playbackStatus === 'Playing' ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
+            let iconName = (playbackStatus === 'Playing')
+                ? 'media-playback-pause-symbolic'
+                : 'media-playback-start-symbolic';
             if (this.playPauseButton) {
                 this.playPauseButton.child.icon_name = iconName;
             }
@@ -507,28 +608,33 @@ var SpotifyIndicator = GObject.registerClass(
         /**
          * Sends an MPRIS command (e.g., 'Previous', 'PlayPause', 'Next') to Spotify.
          * @param {string} command - The MPRIS command to send.
+         * @returns {Promise<void>} - A promise that resolves when the command is sent successfully.
          */
         _sendMPRISCommand(command) {
             logDebug(`Sending MPRIS command: ${command}`);
-            Gio.DBus.session.call(
-                SPOTIFY_BUS_NAME,
-                SPOTIFY_OBJECT_PATH,
-                MPRIS_PLAYER_INTERFACE,
-                command,
-                null,
-                null,
-                Gio.DBusCallFlags.NONE,
-                -1,
-                null,
-                (conn, res) => {
-                    try {
-                        conn.call_finish(res);
-                        logDebug(`MPRIS command '${command}' sent successfully`);
-                    } catch (e) {
-                        logError(e, `Failed to send MPRIS command: ${command}`);
+            return new Promise((resolve, reject) => {
+                Gio.DBus.session.call(
+                    SPOTIFY_BUS_NAME,
+                    SPOTIFY_OBJECT_PATH,
+                    MPRIS_PLAYER_INTERFACE,
+                    command,
+                    null,
+                    null,
+                    Gio.DBusCallFlags.NONE,
+                    -1,
+                    null,
+                    (conn, res) => {
+                        try {
+                            conn.call_finish(res);
+                            logDebug(`MPRIS command '${command}' sent successfully`);
+                            resolve();
+                        } catch (e) {
+                            logError(e, `Failed to send MPRIS command: ${command}`);
+                            reject(e);
+                        }
                     }
-                }
-            );
+                );
+            });
         }
 
         /**
@@ -551,7 +657,7 @@ var SpotifyIndicator = GObject.registerClass(
          */
         _sendMPRISVolumeCommand(command) {
             logDebug(`Sending MPRIS volume command: ${command}`);
-            
+
             // First, get the current volume
             Gio.DBus.session.call(
                 SPOTIFY_BUS_NAME,
@@ -606,7 +712,7 @@ var SpotifyIndicator = GObject.registerClass(
         }
 
         /**
-         * Callback function when Spotify vanishes from the D-Bus.
+         * Callback function when Spotify vanishes from D-Bus.
          * Hides the indicator and cleans up signal subscriptions.
          */
         _onSpotifyVanished() {
@@ -637,13 +743,49 @@ var SpotifyIndicator = GObject.registerClass(
                 this._signalSubscriptionId = null;
             }
 
+            // Disconnect the 'show-spotify-icon' and 'show-track-info' setting change signals
+            if (this._showIconChangedId) {
+                this._settings.disconnect(this._showIconChangedId);
+                this._showIconChangedId = null;
+            }
+
+            if (this._showTrackInfoChangedId) {
+                this._settings.disconnect(this._showTrackInfoChangedId);
+                this._showTrackInfoChangedId = null;
+            }
+
             // Clear all active timeouts
             for (let timeoutID of this._activeTimeouts) {
                 clearTimeout(timeoutID);
             }
             this._activeTimeouts = [];
 
+            // Optionally, hide or destroy the Spotify icon and track label
+            if (this.spotifyIcon) {
+                this.spotifyIcon.destroy();
+                this.spotifyIcon = null;
+            }
+
+            if (this.trackLabel) {
+                this.trackLabel.destroy();
+                this.trackLabel = null;
+            }
+
             super.destroy();
+        }
+
+        _launchSpotify() {
+            logDebug('Attempting to launch Spotify');
+
+            try {
+                Gio.Subprocess.new(
+                    ['spotify'],
+                    Gio.SubprocessFlags.NONE
+                );
+                logDebug('Spotify launched successfully');
+            } catch (e) {
+                logError(e, 'Failed to launch Spotify');
+            }
         }
     }
 );
@@ -661,7 +803,7 @@ export default class SpotifyControlsExtension extends Extension {
      * @param {Object} metadata - The metadata object provided by GNOME Shell.
      */
     constructor(metadata) {
-        super(metadata); 
+        super(metadata);
         logDebug('Initializing SpotifyControlsExtension');
     }
 
@@ -671,13 +813,17 @@ export default class SpotifyControlsExtension extends Extension {
      */
     enable() {
         logDebug('Enabling SpotifyControlsExtension');
-        this._settings = this.getSettings(); 
+        this._settings = this.getSettings();
 
-        // Connect to changes in 'position', 'controls-position', and 'show-playback-controls' settings
+        // Connect to changes in various settings
         this._positionChangedId = this._settings.connect('changed::position', this._onSettingsChanged.bind(this));
         this._controlsPositionChangedId = this._settings.connect('changed::controls-position', this._onSettingsChanged.bind(this));
         this._showControlsChangedId = this._settings.connect('changed::show-playback-controls', this._onSettingsChanged.bind(this));
         this._volumeControlChangedId = this._settings.connect('changed::enable-volume-control', this._onSettingsChanged.bind(this));
+        this._showSpotifyIconChangedId = this._settings.connect('changed::show-spotify-icon', this._onSettingsChanged.bind(this));
+        this._showTrackInfoChangedId = this._settings.connect('changed::show-track-info', this._onSettingsChanged.bind(this));
+        // (No need to connect a signal for minimize-on-second-click unless you
+        // want to dynamically refresh the behavior mid-session. Typically not necessary.)
 
         this._updateIndicator();
     }
@@ -705,7 +851,7 @@ export default class SpotifyControlsExtension extends Extension {
             'middle-right',
             'leftmost-right',
             'mid-right',
-            'far-right'
+            'far-right',
         ];
 
         if (!validPositions.includes(position)) {
@@ -809,6 +955,16 @@ export default class SpotifyControlsExtension extends Extension {
         if (this._volumeControlChangedId) {
             this._settings.disconnect(this._volumeControlChangedId);
             this._volumeControlChangedId = null;
+        }
+
+        if (this._showSpotifyIconChangedId) {
+            this._settings.disconnect(this._showSpotifyIconChangedId);
+            this._showSpotifyIconChangedId = null;
+        }
+
+        if (this._showTrackInfoChangedId) {
+            this._settings.disconnect(this._showTrackInfoChangedId);
+            this._showTrackInfoChangedId = null;
         }
 
         this._settings = null;
