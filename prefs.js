@@ -5,7 +5,7 @@
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -76,35 +76,31 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
         // Create the main preferences page
         const page = new Adw.PreferencesPage();
 
-        // Create a preferences group for general settings
-        const group = new Adw.PreferencesGroup({
+        /**
+         * GENERAL SETTINGS GROUP
+         */
+        const generalGroup = new Adw.PreferencesGroup({
             title: _('General Settings'),
         });
 
         /**
-         * Indicator Position Section
+         * INDICATOR POSITION SECTION
          */
-
-        // Define the choices for the indicator position using PositionItem instances
         const positions = [
-            new PositionItem({ title: _('Far Left'), value: 'far-left' }),
-            new PositionItem({ title: _('Mid Left'), value: 'mid-left' }),
-            new PositionItem({ title: _('Rightmost Left'), value: 'rightmost-left' }),
-            new PositionItem({ title: _('Middle Left'), value: 'middle-left' }),
-            new PositionItem({ title: _('Center'), value: 'center' }),
-            new PositionItem({ title: _('Middle Right'), value: 'middle-right' }),
-            new PositionItem({ title: _('Leftmost Right'), value: 'leftmost-right' }),
-            new PositionItem({ title: _('Mid Right'), value: 'mid-right' }),
-            new PositionItem({ title: _('Far Right'), value: 'far-right' }),
+            new PositionItem({ title: _('Far Left'),         value: 'far-left' }),
+            new PositionItem({ title: _('Mid Left'),         value: 'mid-left' }),
+            new PositionItem({ title: _('Rightmost Left'),   value: 'rightmost-left' }),
+            new PositionItem({ title: _('Middle Left'),      value: 'middle-left' }),
+            new PositionItem({ title: _('Center'),           value: 'center' }),
+            new PositionItem({ title: _('Middle Right'),     value: 'middle-right' }),
+            new PositionItem({ title: _('Leftmost Right'),   value: 'leftmost-right' }),
+            new PositionItem({ title: _('Mid Right'),        value: 'mid-right' }),
+            new PositionItem({ title: _('Far Right'),        value: 'far-right' }),
         ];
 
-        // Create a ListStore to hold the indicator positions
         const positionStore = new Gio.ListStore({ item_type: PositionItem });
-
-        // Append PositionItem instances to the ListStore
         positions.forEach(pos => positionStore.append(pos));
 
-        // Create the ComboRow for selecting the indicator position
         const positionComboRow = new Adw.ComboRow({
             title: _('Indicator Position'),
             subtitle: _('Select the position of the Spotify controls in the top bar'),
@@ -112,41 +108,31 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
             expression: Gtk.PropertyExpression.new(PositionItem, null, 'title'),
         });
 
-        // Retrieve the current position setting
         const currentPositionValue = settings.get_string('position');
         const currentIndex = positions.findIndex(pos => pos.value === currentPositionValue);
-        positionComboRow.set_selected(currentIndex >= 0 ? currentIndex : 0); // Default to first option if not found
+        positionComboRow.set_selected(currentIndex >= 0 ? currentIndex : 0);
 
-        // Connect the 'notify::selected' signal to update the settings when selection changes
         positionComboRow.connect('notify::selected', (row) => {
             const selectedIndex = row.get_selected();
             const selectedItem = positionStore.get_item(selectedIndex);
             if (selectedItem) {
-                const selectedPosition = selectedItem.value;
-                settings.set_string('position', selectedPosition);
+                settings.set_string('position', selectedItem.value);
             }
         });
 
-        // Add the Indicator Position ComboRow to the group
-        group.add(positionComboRow);
+        generalGroup.add(positionComboRow);
 
         /**
-         * Playback Controls Position Section
+         * PLAYBACK CONTROLS POSITION SECTION
          */
-
-        // Define the choices for playback controls position using ControlsPositionItem instances
         const controlsPositions = [
-            new ControlsPositionItem({ title: _('Left'), value: 'left' }),
+            new ControlsPositionItem({ title: _('Left'),  value: 'left'  }),
             new ControlsPositionItem({ title: _('Right'), value: 'right' }),
         ];
 
-        // Create a ListStore to hold the playback controls positions
         const controlsPositionStore = new Gio.ListStore({ item_type: ControlsPositionItem });
-
-        // Append ControlsPositionItem instances to the ListStore
         controlsPositions.forEach(pos => controlsPositionStore.append(pos));
 
-        // Create the ComboRow for selecting playback controls position
         const controlsPositionComboRow = new Adw.ComboRow({
             title: _('Playback Controls Position'),
             subtitle: _('Select whether the playback controls should appear on the left or right'),
@@ -154,74 +140,149 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
             expression: Gtk.PropertyExpression.new(ControlsPositionItem, null, 'title'),
         });
 
-        // Retrieve the current playback controls position setting
         const currentControlsPositionValue = settings.get_string('controls-position');
         const controlsSelectedIndex = controlsPositions.findIndex(pos => pos.value === currentControlsPositionValue);
-        controlsPositionComboRow.set_selected(controlsSelectedIndex >= 0 ? controlsSelectedIndex : 1); // Default to 'Right' if not found
+        controlsPositionComboRow.set_selected(controlsSelectedIndex >= 0 ? controlsSelectedIndex : 1);
 
-        // Connect the 'notify::selected' signal to update the settings when selection changes
         controlsPositionComboRow.connect('notify::selected', (row) => {
             const selectedIndex = row.get_selected();
             const selectedItem = controlsPositionStore.get_item(selectedIndex);
             if (selectedItem) {
-                const selectedPosition = selectedItem.value;
-                settings.set_string('controls-position', selectedPosition);
+                settings.set_string('controls-position', selectedItem.value);
             }
         });
 
-        // Add the Playback Controls Position ComboRow to the group
-        group.add(controlsPositionComboRow);
+        generalGroup.add(controlsPositionComboRow);
 
         /**
-         * Show Playback Controls Toggle
+         * ENABLE VOLUME CONTROL TOGGLE
          */
-
-        // Create a switch row for showing/hiding playback controls
-        const showControlsSwitch = new Adw.SwitchRow({
-            title: _('Show Playback Controls'),
-            subtitle: _('Toggle the visibility of the playback controls (Previous, Play/Pause, Next)'),
-            activatable: true,
-            active: settings.get_boolean('show-playback-controls'), 
-        });
-
-        // Bind the switch to the settings key for automatic synchronization
-        settings.bind(
-            'show-playback-controls',
-            showControlsSwitch,
-            'active', 
-            Gio.SettingsBindFlags.DEFAULT
-        );
-
-        // Add the switch row to the group
-        group.add(showControlsSwitch);
-
-        /**
-         * Enable Volume Control Toggle
-         */
-
-        // Create a switch row for enabling/disabling volume control
         const enableVolumeControlSwitch = new Adw.SwitchRow({
             title: _('Enable Volume Control'),
             subtitle: _('Toggle the volume control feature using the scroll wheel over the song title'),
             activatable: true,
-            active: settings.get_boolean('enable-volume-control'), 
+            active: settings.get_boolean('enable-volume-control'),
         });
 
-        // Bind the switch to the settings key for automatic synchronization
         settings.bind(
             'enable-volume-control',
             enableVolumeControlSwitch,
-            'active', 
+            'active',
             Gio.SettingsBindFlags.DEFAULT
         );
 
-        // Add the switch row to the group
-        group.add(enableVolumeControlSwitch);
+        generalGroup.add(enableVolumeControlSwitch);
 
-        // Add the group to the preferences page
-        page.add(group);
+        /**
+         * ENABLE MIDDLE CLICK TOGGLE
+         */
+        const enableMiddleClickSwitch = new Adw.SwitchRow({
+            title: _('Enable Middle Click Play/Pause'),
+            subtitle: _('Allows toggling the current track with a middle-click on the extension.'),
+            activatable: true,
+            active: settings.get_boolean('enable-middle-click'),
+        });
 
-        // Add the page to the window
+        settings.bind(
+            'enable-middle-click',
+            enableMiddleClickSwitch,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+
+        generalGroup.add(enableMiddleClickSwitch);
+
+        /**
+         * MINIMIZE ON SECOND CLICK TOGGLE
+         */
+        const minimizeOnSecondClickSwitch = new Adw.SwitchRow({
+            title: _('Minimize on Second Click'),
+            subtitle: _('If true, clicking the extension again minimizes Spotify if it is already in the foreground.'),
+            activatable: true,
+            active: settings.get_boolean('minimize-on-second-click'),
+        });
+
+        // Bind to the new key
+        settings.bind(
+            'minimize-on-second-click',
+            minimizeOnSecondClickSwitch,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+
+        generalGroup.add(minimizeOnSecondClickSwitch);
+
+        // Add the general group to the main page
+        page.add(generalGroup);
+
+        /**
+         * DISPLAY OPTIONS GROUP
+         */
+        const displayGroup = new Adw.PreferencesGroup({
+            title: _('Display Options'),
+        });
+
+        /**
+         * SHOW PLAYBACK CONTROLS TOGGLE
+         */
+        const showControlsSwitch = new Adw.SwitchRow({
+            title: _('Show Playback Controls'),
+            subtitle: _('Toggle the visibility of the playback controls (Previous, Play/Pause, Next)'),
+            activatable: true,
+            active: settings.get_boolean('show-playback-controls'),
+        });
+
+        settings.bind(
+            'show-playback-controls',
+            showControlsSwitch,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+
+        displayGroup.add(showControlsSwitch);
+
+        /**
+         * SHOW SPOTIFY ICON TOGGLE
+         */
+        const showSpotifyIconSwitch = new Adw.SwitchRow({
+            title: _('Show Spotify Icon'),
+            subtitle: _('Toggle the visibility of the Spotify logo in the top bar'),
+            activatable: true,
+            active: settings.get_boolean('show-spotify-icon'),
+        });
+
+        settings.bind(
+            'show-spotify-icon',
+            showSpotifyIconSwitch,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+
+        displayGroup.add(showSpotifyIconSwitch);
+
+        /**
+         * SHOW ARTIST/TRACK INFO TOGGLE
+         */
+        const showTrackInfoSwitch = new Adw.SwitchRow({
+            title: _('Show Artist/Track Info'),
+            subtitle: _('Toggle the visibility of the Artist and Track information in the top bar'),
+            activatable: true,
+            active: settings.get_boolean('show-track-info'),
+        });
+
+        settings.bind(
+            'show-track-info',
+            showTrackInfoSwitch,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+
+        displayGroup.add(showTrackInfoSwitch);
+
+        // Add the display group to the page
+        page.add(displayGroup);
+
+        // Finally, add the page to the window and show
         window.add(page);
         window.show();
     }
