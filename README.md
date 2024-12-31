@@ -45,6 +45,13 @@
 
 ## Patch notes [extensions.gnome.org](https://extensions.gnome.org/extension/7406/spotify-controls/)
 
+**Version 10**, added support for:
+- Bug fixed: Spotify window bug when 'Close button should minimize the Spotify window' on the spotify client. [[1]](https://github.com/Sonath21/spotify-controls/issues/14)
+- Added: Show/hide spotify icon option.
+- Added: Show/hide Artist/Track info option.
+- Added: Option to minimize the spotify client on second click (First click brings to foreground, second click minimizes), on the extension (in the top bar)
+- Added: Middle-click on the extension, to play/pause current track option.
+
 **Version 9**, added support for:
 - Added "Volume Control via Scroll Wheel" feature - submitted by **[her0](https://github.com/Her0-GitHub)** 
 - Minimise Spotify window if it's not minimized when clicking on the extension - submitted by **[AFCMS](https://github.com/AFCMS)**
