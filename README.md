@@ -18,7 +18,7 @@
 
 ## Installation
 
-### Via [extensions.gnome.org](https://extensions.gnome.org/)
+### Via [extensions.gnome.org](https://extensions.gnome.org/extension/7406/spotify-controls/)
 
 1. **Install GNOME Shell Integration:**
    - For Firefox: Install the [GNOME Shell Integration extension](https://addons.mozilla.org/firefox/addon/gnome-shell-integration/).
