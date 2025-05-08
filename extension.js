@@ -566,6 +566,18 @@ var SpotifyIndicator = GObject.registerClass(
             let artist = _('Unknown Artist');
             if (Array.isArray(artistArray) && artistArray.length > 0 && artistArray[0].trim() !== '') {
                 artist = artistArray[0];
+            } else {
+                // Possibly a podcast
+
+                // Podcasts have a trackid of /com/spotify/episode and seem to put the
+                // podcast name in the album property
+                let trackid = this._recursiveUnpack(metadata['mpris:trackid']);
+                if (trackid && trackid.startsWith('/com/spotify/episode')) {
+                    let album = this._recursiveUnpack(metadata['xesam:album']);
+                    if (album && album.trim() !== '') {
+                        artist = album;
+                    }
+                }
             }
 
             if (title && title.trim() !== '') {
