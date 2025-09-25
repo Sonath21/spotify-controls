@@ -45,8 +45,12 @@
 
 ## Patch notes [extensions.gnome.org](https://extensions.gnome.org/extension/7406/spotify-controls/)
 
+**Version 12**, added support for:
+- Bug fixed: Handle Podcast metadata to show as Artist [[18]](https://github.com/Sonath21/spotify-controls/pull/18) - submitted by **[andrewburgess](https://github.com/andrewburgess)** 
+- Gnome 49 compatibility
+
 **Version 10**, added support for:
-- Bug fixed: Spotify window bug when 'Close button should minimize the Spotify window' on the spotify client. [[1]](https://github.com/Sonath21/spotify-controls/issues/14)
+- Bug fixed: Spotify window bug when 'Close button should minimize the Spotify window' on the spotify client. [[14]](https://github.com/Sonath21/spotify-controls/issues/14)
 - Added: Show/hide spotify icon option.
 - Added: Show/hide Artist/Track info option.
 - Added: Option to minimize the spotify client on second click (First click brings to foreground, second click minimizes), on the extension (in the top bar)
