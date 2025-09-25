@@ -6,10 +6,11 @@
   "preferences": "prefs.js",
   "settings-schema": "org.gnome.shell.extensions.spotify-controls",
   "shell-version": [
-    "45",
-    "46",
-    "47",
-    "48"
+     "45",
+     "46",
+     "47",
+     "48",
+     "49"
   ],
   "url": "https://github.com/Sonath21/spotify-controls",
   "uuid": "spotify-controls@Sonath21",
