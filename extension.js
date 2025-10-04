@@ -232,10 +232,10 @@ var SpotifyIndicator = GObject.registerClass(
                 this.spotifyIcon.visible = showIcon;
 
                 // Add the Spotify icon to the UI
-                this.add_child_before(this.spotifyIcon, this.trackButton);
-                this.add_child_after(this.spotifyIcon, this._createSeparator());
-                this.add_child_after(this.spotifyIcon, this._createSeparator());
-                this.add_child_after(this.spotifyIcon, this._createSeparator());
+                this.trackBox.add_child_before(this.spotifyIcon, this.trackButton);
+                this.trackBox.add_child_after(this.spotifyIcon, this._createSeparator());
+                this.trackBox.add_child_after(this.spotifyIcon, this._createSeparator());
+                this.trackBox.add_child_after(this.spotifyIcon, this._createSeparator());
 
                 logDebug('Spotify icon created and shown');
             }
@@ -249,8 +249,8 @@ var SpotifyIndicator = GObject.registerClass(
             const showInfo = this._settings.get_boolean('show-track-info');
             logDebug(`'show-track-info' changed to ${showInfo}`);
 
-            if (this.trackButton) {
-                this.trackButton.visible = showInfo;
+            if (this.trackLabel) {
+                this.trackLabel.visible = showInfo;
                 logDebug(`Track info visibility set to ${showInfo}`);
             }
         }
@@ -599,7 +599,7 @@ var SpotifyIndicator = GObject.registerClass(
                 title = _('Unknown Title');
             }
 
-            this.trackButton.text = `${artist} - ${title}`;
+            this.trackLabel.text = `${artist} - ${title}`;
             logDebug(`Updated track info: ${artist} - ${title}`);
         }
 
@@ -789,6 +789,16 @@ var SpotifyIndicator = GObject.registerClass(
             if (this.spotifyIcon) {
                 this.spotifyIcon.destroy();
                 this.spotifyIcon = null;
+            }
+
+            if (this.trackLabel) {
+                this.trackLabel.destroy();
+                this.trackLabel = null;
+            }
+
+            if(this.trackBox){
+                this.trackBox.destroy();
+                this.trackBox = null;
             }
 
             if (this.trackButton) {
