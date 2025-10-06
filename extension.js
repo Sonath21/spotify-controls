@@ -141,6 +141,17 @@ var SpotifyIndicator = GObject.registerClass(
                 controlsBox.add_child(this.nextButton);
             }
 
+
+            // Container to contain the track info and spotify logo
+            this.trackBox = new St.BoxLayout();
+
+            // Button to show and hide spotify window
+            this.trackButton = new St.Button({
+                child: this.trackBox
+            });
+            this.trackButton.connect("clicked", () => this._activateSpotifyWindow());
+            
+
             // Spotify icon - Load the SVG from the icons directory using extensionPath
             this.spotifyIcon = new St.Icon({
                 gicon: Gio.icon_new_for_string(`${extensionPath}/icons/spotify.svg`),
@@ -150,24 +161,29 @@ var SpotifyIndicator = GObject.registerClass(
 
             // Initially set the visibility based on the settings
             this.spotifyIcon.visible = this._settings.get_boolean('show-spotify-icon');
-
+            
             // Add the Spotify icon and separators to the UI
-            hbox.add_child(this.spotifyIcon);
-            hbox.add_child(this._createSeparator());
-            hbox.add_child(this._createSeparator());
-            hbox.add_child(this._createSeparator());
+            this.trackBox.add_child(this.spotifyIcon);
+            this.trackBox.add_child(this._createSeparator());
+            this.trackBox.add_child(this._createSeparator());
+            this.trackBox.add_child(this._createSeparator());
+            
+
 
             // Artist and Song Title label
             this.trackLabel = new St.Label({
-                text: _('No Track Playing'),
-                y_expand: true,
-                y_align: Clutter.ActorAlign.CENTER,
-            });
+                    text: _('No Track Playing'),
+                    y_expand: true,
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
 
             // Conditionally display the track info based on the setting
             this.trackLabel.visible = this._settings.get_boolean('show-track-info');
 
-            // Add scroll event listener to trackLabel for volume control
+            // add trackLabel to the UI
+            this.trackBox.add_child(this.trackLabel);
+
+            // Add scroll event listener to widget for volume control
             if (this._settings.get_boolean('enable-volume-control')) {
                 this.connect('scroll-event', this._adjustVolume.bind(this));
             }
@@ -181,10 +197,10 @@ var SpotifyIndicator = GObject.registerClass(
                     hbox.add_child(this._createSeparator());
                     hbox.add_child(this._createSeparator());
                 }
-                hbox.add_child(this.trackLabel);
+                hbox.add_child(this.trackButton);
             } else {
                 // Add playback controls last (default behavior) if they are enabled
-                hbox.add_child(this.trackLabel);
+                hbox.add_child(this.trackButton);
                 if (this._settings.get_boolean('show-playback-controls')) {
                     hbox.add_child(this._createSeparator());
                     hbox.add_child(this._createSeparator());
@@ -216,10 +232,10 @@ var SpotifyIndicator = GObject.registerClass(
                 this.spotifyIcon.visible = showIcon;
 
                 // Add the Spotify icon to the UI
-                this.add_child_before(this.spotifyIcon, this.trackLabel);
-                this.add_child_after(this.spotifyIcon, this._createSeparator());
-                this.add_child_after(this.spotifyIcon, this._createSeparator());
-                this.add_child_after(this.spotifyIcon, this._createSeparator());
+                this.trackBox.add_child_before(this.spotifyIcon, this.trackButton);
+                this.trackBox.add_child_after(this.spotifyIcon, this._createSeparator());
+                this.trackBox.add_child_after(this.spotifyIcon, this._createSeparator());
+                this.trackBox.add_child_after(this.spotifyIcon, this._createSeparator());
 
                 logDebug('Spotify icon created and shown');
             }
@@ -250,10 +266,7 @@ var SpotifyIndicator = GObject.registerClass(
             // Retrieve user setting for enabling middle-click
             const enableMiddleClick = this._settings.get_boolean('enable-middle-click');
 
-            if (button === Clutter.BUTTON_PRIMARY) {
-                // Left-click: Toggle Spotify window
-                this._activateSpotifyWindow();
-            } else if (button === Clutter.BUTTON_MIDDLE && enableMiddleClick) {
+            if (button === Clutter.BUTTON_MIDDLE && enableMiddleClick) {
                 // Only do Play/Pause if middle-click is enabled
                 this._sendMPRISCommand('PlayPause')
                     .catch(() => {
@@ -781,6 +794,16 @@ var SpotifyIndicator = GObject.registerClass(
             if (this.trackLabel) {
                 this.trackLabel.destroy();
                 this.trackLabel = null;
+            }
+
+            if(this.trackBox){
+                this.trackBox.destroy();
+                this.trackBox = null;
+            }
+
+            if (this.trackButton) {
+                this.trackButton.destroy();
+                this.trackButton = null;
             }
 
             super.destroy();
