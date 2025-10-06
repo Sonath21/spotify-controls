@@ -45,6 +45,9 @@
 
 ## Patch notes [extensions.gnome.org](https://extensions.gnome.org/extension/7406/spotify-controls/)
 
+**Version 13**, added support for:
+- Bug fixed: Spotify opens even when pressing play/pause/next/previous [[22]](https://github.com/Sonath21/spotify-controls/issues/22) - submitted by **[r11b22](https://github.com/r11b22)** 
+
 **Version 12**, added support for:
 - Bug fixed: Handle Podcast metadata to show as Artist [[18]](https://github.com/Sonath21/spotify-controls/pull/18) - submitted by **[andrewburgess](https://github.com/andrewburgess)** 
 - Gnome 49 compatibility
