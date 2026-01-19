@@ -123,7 +123,7 @@ var SpotifyIndicator = GObject.registerClass(
                 });
                 this.playPauseButton = new St.Button({
                     style_class: 'spotify-status-icon',
-                    child: new St.Icon({ icon_name: 'media-playback-pause-symbolic' }), 
+                    child: new St.Icon({ icon_name: 'media-playback-pause-symbolic' }),
                 });
                 this.nextButton = new St.Button({
                     style_class: 'spotify-status-icon',
@@ -150,7 +150,7 @@ var SpotifyIndicator = GObject.registerClass(
                 child: this.trackBox
             });
             this.trackButton.connect("clicked", () => this._activateSpotifyWindow());
-            
+
 
             // Spotify icon - Load the SVG from the icons directory using extensionPath
             this.spotifyIcon = new St.Icon({
@@ -161,21 +161,21 @@ var SpotifyIndicator = GObject.registerClass(
 
             // Initially set the visibility based on the settings
             this.spotifyIcon.visible = this._settings.get_boolean('show-spotify-icon');
-            
+
             // Add the Spotify icon and separators to the UI
             this.trackBox.add_child(this.spotifyIcon);
             this.trackBox.add_child(this._createSeparator());
             this.trackBox.add_child(this._createSeparator());
             this.trackBox.add_child(this._createSeparator());
-            
+
 
 
             // Artist and Song Title label
             this.trackLabel = new St.Label({
-                    text: _('No Track Playing'),
-                    y_expand: true,
-                    y_align: Clutter.ActorAlign.CENTER,
-                });
+                text: _('No Track Playing'),
+                y_expand: true,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
 
             // Conditionally display the track info based on the setting
             this.trackLabel.visible = this._settings.get_boolean('show-track-info');
@@ -262,7 +262,42 @@ var SpotifyIndicator = GObject.registerClass(
          */
         _onExtensionClicked(actor, event) {
             const button = event.get_button();
-            
+            const state = event.get_state();
+
+            // Retrieve user setting for enabling CTRL + Click navigation
+            // using a try-catch block in case the key hasn't been compiled/loaded yet to avoid crashing
+            let enableCtrlNavigation = true;
+            let modifierKeySetting = 'Ctrl';
+            try {
+                enableCtrlNavigation = this._settings.get_boolean('enable-ctrl-click-navigation');
+                modifierKeySetting = this._settings.get_string('modifier-key');
+            } catch (e) {
+                logDebug('enable-ctrl-click-navigation or modifier-key key not found or error, defaulting to true/Ctrl');
+            }
+
+            // Map allowed strings to Clutter Modifier Types
+            const modifierMap = {
+                'Ctrl': Clutter.ModifierType.CONTROL_MASK,
+                'Alt': Clutter.ModifierType.MOD1_MASK,
+                'Super': Clutter.ModifierType.SUPER_MASK,
+                'Shift': Clutter.ModifierType.SHIFT_MASK
+            };
+
+            const expectedMask = modifierMap[modifierKeySetting] || Clutter.ModifierType.CONTROL_MASK;
+            const isModifierHeld = (state & expectedMask) !== 0;
+
+            if (enableCtrlNavigation && isModifierHeld) {
+                if (button === Clutter.BUTTON_PRIMARY) {
+                    // Modifier + Left Click: Previous
+                    this._sendMPRISCommand('Previous');
+                    return Clutter.EVENT_STOP;
+                } else if (button === Clutter.BUTTON_SECONDARY) {
+                    // Modifier + Right Click: Next
+                    this._sendMPRISCommand('Next');
+                    return Clutter.EVENT_STOP;
+                }
+            }
+
             // Retrieve user setting for enabling middle-click
             const enableMiddleClick = this._settings.get_boolean('enable-middle-click');
 
@@ -273,7 +308,10 @@ var SpotifyIndicator = GObject.registerClass(
                         // If PlayPause fails, attempt to launch Spotify
                         this._launchSpotify();
                     });
+                return Clutter.EVENT_STOP;
             }
+
+            return Clutter.EVENT_PROPAGATE;
         }
 
         /**
@@ -796,7 +834,7 @@ var SpotifyIndicator = GObject.registerClass(
                 this.trackLabel = null;
             }
 
-            if(this.trackBox){
+            if (this.trackBox) {
                 this.trackBox.destroy();
                 this.trackBox = null;
             }
