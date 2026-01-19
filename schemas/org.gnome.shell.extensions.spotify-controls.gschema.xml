@@ -62,5 +62,22 @@
         If un-toggled, clicking the extension again while Spotify is on top does nothing.
       </description>
     </key>
+    <key name="enable-ctrl-click-navigation" type="b">
+      <default>true</default>
+      <summary>Enable CTRL + Click Navigation</summary>
+      <description>
+        If enabled, holding CTRL while clicking the extension will control playback:
+        - CTRL + Left Click: Previous Song
+        - CTRL + Right Click: Skip Song
+      </description>
+    </key>
+    <key name="modifier-key" type="s">
+      <default>'Ctrl'</default>
+      <summary>Navigation Modifier Key</summary>
+      <description>
+        The modifier key to hold for navigation (Previous/Next) when clicking the display.
+        Possible value: 'Ctrl', 'Alt', 'Super', 'Shift'
+      </description>
+    </key>
   </schema>
 </schemalist>

@@ -59,6 +59,24 @@ const ControlsPositionItem = GObject.registerClass(
 );
 
 /**
+ * Define the ModifierKeyItem GObject class for Modifier Key choices.
+ */
+const ModifierKeyItem = GObject.registerClass(
+    {
+        GTypeName: 'SpotifyControlsModifierKeyItem',
+        Properties: {
+            'title': GObject.ParamSpec.string('title', 'Title', 'Title', GObject.ParamFlags.READWRITE, ''),
+            'value': GObject.ParamSpec.string('value', 'Value', 'Value', GObject.ParamFlags.READWRITE, ''),
+        },
+    },
+    class ModifierKeyItem extends GObject.Object {
+        _init(props = {}) {
+            super._init(props);
+        }
+    }
+);
+
+/**
  * SpotifyControlsPrefs class handles the preferences window for the extension.
  */
 export default class SpotifyControlsPrefs extends ExtensionPreferences {
@@ -211,6 +229,57 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
         );
 
         generalGroup.add(minimizeOnSecondClickSwitch);
+
+        // ENABLE CTRL + CLICK NAVIGATION TOGGLE
+        const enableCtrlClickNavSwitch = new Adw.SwitchRow({
+            title: _('Enable Control + Click Navigation'),
+            subtitle: _('Hold Control + Left Click for Previous, Control + Right Click for Next'),
+            activatable: true,
+            active: settings.get_boolean('enable-ctrl-click-navigation'),
+        });
+
+        settings.bind(
+            'enable-ctrl-click-navigation',
+            enableCtrlClickNavSwitch,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+
+        generalGroup.add(enableCtrlClickNavSwitch);
+
+        /**
+         * MODIFIER KEY SECTION
+         */
+        const modifierKeys = [
+            new ModifierKeyItem({ title: _('Ctrl'), value: 'Ctrl' }),
+            new ModifierKeyItem({ title: _('Alt'), value: 'Alt' }),
+            new ModifierKeyItem({ title: _('Super'), value: 'Super' }),
+            new ModifierKeyItem({ title: _('Shift'), value: 'Shift' }),
+        ];
+
+        const modifierKeyStore = new Gio.ListStore({ item_type: ModifierKeyItem });
+        modifierKeys.forEach(key => modifierKeyStore.append(key));
+
+        const modifierKeyComboRow = new Adw.ComboRow({
+            title: _('Navigation Modifier Key'),
+            subtitle: _('Select the modifier key to use with click navigation'),
+            model: modifierKeyStore,
+            expression: Gtk.PropertyExpression.new(ModifierKeyItem, null, 'title'),
+        });
+
+        const currentModifierKeyValue = settings.get_string('modifier-key');
+        const modifierKeyIndex = modifierKeys.findIndex(key => key.value === currentModifierKeyValue);
+        modifierKeyComboRow.set_selected(modifierKeyIndex >= 0 ? modifierKeyIndex : 0);
+
+        modifierKeyComboRow.connect('notify::selected', (row) => {
+            const selectedIndex = row.get_selected();
+            const selectedItem = modifierKeyStore.get_item(selectedIndex);
+            if (selectedItem) {
+                settings.set_string('modifier-key', selectedItem.value);
+            }
+        });
+
+        generalGroup.add(modifierKeyComboRow);
 
         // Add the general group to the main page
         page.add(generalGroup);
