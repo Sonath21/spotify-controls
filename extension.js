@@ -347,26 +347,7 @@ var SpotifyIndicator = GObject.registerClass(
 
             if (!spotifyFound) {
                 logDebug('Spotify window not found. Attempting to launch Spotify to show its window.');
-
-                try {
-                    // Create a new subprocess to execute the 'spotify' command
-                    const subprocess = Gio.Subprocess.new(
-                        ['spotify'],
-                        Gio.SubprocessFlags.NONE
-                    );
-
-                    // Run the subprocess async
-                    subprocess.wait_async(null, (proc, res) => {
-                        try {
-                            proc.wait_finish(res);
-                            logDebug('Spotify launched successfully to show its window.');
-                        } catch (e) {
-                            logError(e, 'Failed to launch Spotify to show its window.');
-                        }
-                    });
-                } catch (e) {
-                    logError(e, 'Error while attempting to launch Spotify subprocess.', e);
-                }
+                this._launchSpotifyProcess(() => {});
             }
         }
 
@@ -809,18 +790,57 @@ var SpotifyIndicator = GObject.registerClass(
             super.destroy();
         }
 
+        /**
+         * Try to launch Spotify using native command first then Flatpak on Failure.
+         * Used when no Spotify window is found.
+         * @param {Function} callback -Optional callback when launch is attempted
+         */
+        _launchSpotifyProcess(callback) {
+            let lastError = null;
+
+            const tryLaunch = (args) => {
+                try {
+                    const subprocess = Gio.Subprocess.new(args, Gio.SubprocessFlags.NONE);
+                    if (callback) {
+                        subprocess.wait_async(null, (proc, res) => {
+                            try {
+                                proc.wait_finish(res);
+                                logDebug('Spotify launched successfully to show its window.');
+                                callback();
+                            } catch (e) {
+                                logError(e, 'Failed to launch Spotify to show its window.');
+                            }
+                        });
+                    }
+                    return true;
+                } catch (e) {
+                    lastError = e;
+                    return false;
+                }
+            };
+            
+            if (tryLaunch(['spotify'])) {
+                if (!callback) {
+                    logDebug('Spotify launched successfully');
+                }
+                return;
+            }
+            logDebug('Native spotify not found, trying Flatpak');
+            if (tryLaunch(['flatpak', 'run', 'com.spotify.Client'])) {
+                if (!callback) {
+                    logDebug('Spotify launched successfully');
+                }
+                return;
+            }
+            logError(lastError, 'Error while attempting to launch Spotify subprocess.');
+            if (callback) {
+                callback();
+            }
+        }
+
         _launchSpotify() {
             logDebug('Attempting to launch Spotify');
-
-            try {
-                Gio.Subprocess.new(
-                    ['spotify'],
-                    Gio.SubprocessFlags.NONE
-                );
-                logDebug('Spotify launched successfully');
-            } catch (e) {
-                logError(e, 'Failed to launch Spotify');
-            }
+            this._launchSpotifyProcess();
         }
     }
 );
