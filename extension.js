@@ -22,6 +22,7 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Clutter from 'gi://Clutter';
 import Pango from 'gi://Pango';
+import Shell from 'gi://Shell';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
@@ -132,10 +133,12 @@ var SpotifyIndicator = GObject.registerClass(
                     child: new St.Icon({ icon_name: 'media-skip-forward-symbolic' }),
                 });
 
-                // Connect the 'clicked' signal of each button to their respective handler functions
-                this.prevButton.connect('clicked', () => this._sendMPRISCommand('Previous'));
-                this.playPauseButton.connect('clicked', () => this._sendMPRISCommand('PlayPause'));
-                this.nextButton.connect('clicked', () => this._sendMPRISCommand('Next'));
+                // GNOME Shell 49/50 changed button event handling enough that
+                // nested St.Button actors in panel indicators may stop emitting
+                // the old clicked signal reliably. Handle press events directly.
+                this._connectActionButton(this.prevButton, () => this._sendMPRISCommand('Previous'));
+                this._connectActionButton(this.playPauseButton, () => this._sendMPRISCommand('PlayPause'));
+                this._connectActionButton(this.nextButton, () => this._sendMPRISCommand('Next'));
 
                 // Add buttons to the controlsBox
                 controlsBox.add_child(this.prevButton);
@@ -151,7 +154,7 @@ var SpotifyIndicator = GObject.registerClass(
             this.trackButton = new St.Button({
                 child: this.trackBox
             });
-            this.trackButton.connect("clicked", () => this._activateSpotifyWindow());
+            this._connectActionButton(this.trackButton, () => this._activateSpotifyWindow());
             
 
             // Spotify icon - Load the SVG from the icons directory using extensionPath
@@ -216,6 +219,30 @@ var SpotifyIndicator = GObject.registerClass(
             }
 
             logDebug('UI built with controls positioned to the ' + this.controlsPosition);
+        }
+
+        /**
+         * Connect a button action in a way that remains reliable in newer
+         * GNOME Shell releases.
+         * @param {St.Button} button - The button actor.
+         * @param {Function} handler - The handler to run on left click.
+         */
+        _connectActionButton(button, handler) {
+            if (typeof button.clear_actions === 'function')
+                button.clear_actions();
+
+            button.connect('button-press-event', (_actor, event) => {
+                if (event.get_button() !== Clutter.BUTTON_PRIMARY)
+                    return Clutter.EVENT_PROPAGATE;
+
+                try {
+                    handler();
+                } catch (e) {
+                    logError(e, 'Failed to handle button press');
+                }
+
+                return Clutter.EVENT_STOP;
+            });
         }
 
         /**
@@ -302,65 +329,47 @@ var SpotifyIndicator = GObject.registerClass(
             const minimizeOnSecondClick = this._settings.get_boolean('minimize-on-second-click');
             logDebug(`minimizeOnSecondClick = ${minimizeOnSecondClick}`);
 
-            // Retrieve all window actors
-            let windowActors = global.get_window_actors();
+            const timestamp = global.get_current_time();
+            const spotifyWindows = this._getSpotifyWindows();
+            const targetWindow = spotifyWindows.find(window => !window.minimized) ?? spotifyWindows[0];
 
-            // Flag to check if Spotify window is found
-            let spotifyFound = false;
+            if (targetWindow) {
+                try {
+                    const windowHasFocus = typeof targetWindow.has_focus === 'function'
+                        ? targetWindow.has_focus()
+                        : false;
 
-            for (let actor of windowActors) {
-                let window = actor.get_meta_window();
-                let wmClass = window.get_wm_class();
-
-                // Log details for debugging
-                logDebug(`Window WM_CLASS: ${JSON.stringify(wmClass)} (Type: ${typeof wmClass})`);
-                logDebug(`Window Title: ${window.get_title()} (Type: ${typeof window.get_title()})`);
-                logDebug(`Window Workspace: ${window.get_workspace()} (Type: ${typeof window.get_workspace()})`);
-
-                let isSpotify = false;
-
-                if (Array.isArray(wmClass)) {
-                    // If wmClass is an array, check if any element matches 'spotify'
-                    isSpotify = wmClass.some(cls => cls.toLowerCase() === 'spotify');
-                } else if (typeof wmClass === 'string') {
-                    // If wmClass is a string, check if it matches 'spotify'
-                    isSpotify = wmClass.toLowerCase() === 'spotify';
-                }
-
-                if (isSpotify) {
-                    // Validate that 'window' has the 'activate' method
-                    if (typeof window.activate !== 'function') {
-                        logDebug('Window does not have an activate method. Skipping.');
-                        continue;
+                    if (windowHasFocus && minimizeOnSecondClick) {
+                        targetWindow.minimize();
+                        logDebug('Spotify window minimized');
+                        return;
                     }
 
-                    try {
-                        if (window.minimized) {
-                            // If the window is minimized, unminimize and activate
-                            window.unminimize();
-                            logDebug("Spotify window unminimized");
-                            window.activate(global.get_current_time());
-                            logDebug("Spotify window activated");
-                        } else {
-                            // If it's not minimized and the user wants to
-                            // minimize on second click, do so. Otherwise, do nothing.
-                            if (minimizeOnSecondClick) {
-                                window.minimize();
-                                logDebug("Spotify window minimized");
-                            } else {
-                                logDebug("Spotify already in foreground; doing nothing.");
-                            }
-                        }
-
-                        spotifyFound = true;
-                        break; // Exit once we handle the Spotify window
-                    } catch (e) {
-                        logError(e, 'Failed to activate Spotify window');
+                    if (targetWindow.minimized) {
+                        targetWindow.unminimize();
+                        logDebug('Spotify window unminimized');
                     }
+
+                    targetWindow.activate(timestamp);
+                    logDebug('Spotify window activated');
+                    return;
+                } catch (e) {
+                    logError(e, 'Failed to activate Spotify window');
                 }
             }
 
-            if (!spotifyFound) {
+            const spotifyApp = this._getSpotifyApp();
+            if (spotifyApp) {
+                try {
+                    spotifyApp.activate();
+                    logDebug('Spotify app activated through Shell.App');
+                    return;
+                } catch (e) {
+                    logError(e, 'Failed to activate Spotify Shell.App');
+                }
+            }
+
+            {
                 logDebug('Spotify window not found. Attempting to launch Spotify to show its window.');
 
                 try {
@@ -383,6 +392,56 @@ var SpotifyIndicator = GObject.registerClass(
                     logError(e, 'Error while attempting to launch Spotify subprocess.', e);
                 }
             }
+        }
+
+        /**
+         * Lookup the Shell.App representing Spotify.
+         * @returns {Shell.App | null}
+         */
+        _getSpotifyApp() {
+            const appSystem = Shell.AppSystem.get_default();
+
+            return appSystem.lookup_app('spotify.desktop') ??
+                appSystem.lookup_app('com.spotify.Client.desktop') ??
+                null;
+        }
+
+        /**
+         * Find Spotify windows either through Shell.App metadata or WM_CLASS.
+         * @returns {Meta.Window[]}
+         */
+        _getSpotifyWindows() {
+            const spotifyApp = this._getSpotifyApp();
+            if (spotifyApp) {
+                const appWindows = spotifyApp.get_windows();
+                if (appWindows.length > 0)
+                    return appWindows;
+            }
+
+            return global.get_window_actors()
+                .map(actor => actor.get_meta_window())
+                .filter(window => this._isSpotifyWindow(window));
+        }
+
+        /**
+         * Check whether a Meta.Window belongs to Spotify.
+         * @param {Meta.Window} window - The window to inspect.
+         * @returns {boolean}
+         */
+        _isSpotifyWindow(window) {
+            const wmClass = window.get_wm_class();
+
+            logDebug(`Window WM_CLASS: ${JSON.stringify(wmClass)} (Type: ${typeof wmClass})`);
+            logDebug(`Window Title: ${window.get_title()} (Type: ${typeof window.get_title()})`);
+            logDebug(`Window Workspace: ${window.get_workspace()} (Type: ${typeof window.get_workspace()})`);
+
+            if (Array.isArray(wmClass))
+                return wmClass.some(cls => cls?.toLowerCase() === 'spotify');
+
+            if (typeof wmClass === 'string')
+                return wmClass.toLowerCase() === 'spotify';
+
+            return false;
         }
 
         /**
