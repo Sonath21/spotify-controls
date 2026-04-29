@@ -154,7 +154,11 @@ var SpotifyIndicator = GObject.registerClass(
             this.trackButton = new St.Button({
                 child: this.trackBox
             });
-            this._connectActionButton(this.trackButton, () => this._activateSpotifyWindow());
+            this._connectActionButton(
+                this.trackButton,
+                () => this._activateSpotifyWindow(),
+                () => this._handleMiddleClick()
+            );
             
 
             // Spotify icon - Load the SVG from the icons directory using extensionPath
@@ -226,13 +230,26 @@ var SpotifyIndicator = GObject.registerClass(
          * GNOME Shell releases.
          * @param {St.Button} button - The button actor.
          * @param {Function} handler - The handler to run on left click.
+         * @param {Function | null} middleHandler - Optional handler for middle click.
          */
-        _connectActionButton(button, handler) {
+        _connectActionButton(button, handler, middleHandler = null) {
             if (typeof button.clear_actions === 'function')
                 button.clear_actions();
 
             button.connect('button-press-event', (_actor, event) => {
-                if (event.get_button() !== Clutter.BUTTON_PRIMARY)
+                const pressedButton = event.get_button();
+
+                if (pressedButton === Clutter.BUTTON_MIDDLE && middleHandler) {
+                    try {
+                        middleHandler();
+                    } catch (e) {
+                        logError(e, 'Failed to handle middle button press');
+                    }
+
+                    return Clutter.EVENT_STOP;
+                }
+
+                if (pressedButton !== Clutter.BUTTON_PRIMARY)
                     return Clutter.EVENT_PROPAGATE;
 
                 try {
@@ -304,18 +321,21 @@ var SpotifyIndicator = GObject.registerClass(
          */
         _onExtensionClicked(actor, event) {
             const button = event.get_button();
-            
-            // Retrieve user setting for enabling middle-click
+
+            if (button === Clutter.BUTTON_MIDDLE)
+                this._handleMiddleClick();
+        }
+
+        _handleMiddleClick() {
             const enableMiddleClick = this._settings.get_boolean('enable-middle-click');
 
-            if (button === Clutter.BUTTON_MIDDLE && enableMiddleClick) {
-                // Only do Play/Pause if middle-click is enabled
-                this._sendMPRISCommand('PlayPause')
-                    .catch(() => {
-                        // If PlayPause fails, attempt to launch Spotify
-                        this._launchSpotify();
-                    });
-            }
+            if (!enableMiddleClick)
+                return;
+
+            this._sendMPRISCommand('PlayPause')
+                .catch(() => {
+                    this._launchSpotify();
+                });
         }
 
         /**
