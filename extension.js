@@ -79,6 +79,10 @@ var SpotifyIndicator = GObject.registerClass(
             // Initialize the _activeTimeouts array
             this._activeTimeouts = [];
 
+            // Track button-press-event connections so they can be explicitly
+            // disconnected on destroy().
+            this._buttonSignals = [];
+
             // Store the extensionPath for later use
             this.extensionPath = extensionPath;
 
@@ -132,10 +136,12 @@ var SpotifyIndicator = GObject.registerClass(
                     child: new St.Icon({ icon_name: 'media-skip-forward-symbolic' }),
                 });
 
-                // Connect the 'clicked' signal of each button to their respective handler functions
-                this.prevButton.connect('clicked', () => this._sendMPRISCommand('Previous'));
-                this.playPauseButton.connect('clicked', () => this._sendMPRISCommand('PlayPause'));
-                this.nextButton.connect('clicked', () => this._sendMPRISCommand('Next'));
+                // GNOME Shell 49/50 changed event dispatching for nested St.Button
+                // actors inside panel indicators, so the 'clicked' signal can stop
+                // firing. Use button-press-event directly via _connectActionButton.
+                this._connectActionButton(this.prevButton, () => this._sendMPRISCommand('Previous'));
+                this._connectActionButton(this.playPauseButton, () => this._sendMPRISCommand('PlayPause'));
+                this._connectActionButton(this.nextButton, () => this._sendMPRISCommand('Next'));
 
                 // Add buttons to the controlsBox
                 controlsBox.add_child(this.prevButton);
@@ -151,7 +157,11 @@ var SpotifyIndicator = GObject.registerClass(
             this.trackButton = new St.Button({
                 child: this.trackBox
             });
-            this.trackButton.connect("clicked", () => this._activateSpotifyWindow());
+            this._connectActionButton(
+                this.trackButton,
+                () => this._activateSpotifyWindow(),
+                () => this._handleMiddleClick()
+            );
             
 
             // Spotify icon - Load the SVG from the icons directory using extensionPath
@@ -271,24 +281,67 @@ var SpotifyIndicator = GObject.registerClass(
         }
 
         /**
-         * Handles the click event on the extension.
+         * Connect a button action in a way that stays reliable on GNOME Shell
+         * 49/50, where the legacy 'clicked' signal can be swallowed for
+         * St.Button actors nested inside a PanelMenu.Button.
+         * @param {St.Button} button - The button actor.
+         * @param {Function} handler - Handler invoked on left click.
+         * @param {Function|null} middleHandler - Optional handler for middle click.
+         */
+        _connectActionButton(button, handler, middleHandler = null) {
+            if (typeof button.clear_actions === 'function')
+                button.clear_actions();
+
+            const signalId = button.connect('button-press-event', (_actor, event) => {
+                const pressedButton = event.get_button();
+
+                if (pressedButton === Clutter.BUTTON_MIDDLE && middleHandler) {
+                    try {
+                        middleHandler();
+                    } catch (e) {
+                        logError(e, 'Failed to handle middle button press');
+                    }
+                    return Clutter.EVENT_STOP;
+                }
+
+                if (pressedButton !== Clutter.BUTTON_PRIMARY)
+                    return Clutter.EVENT_PROPAGATE;
+
+                try {
+                    handler();
+                } catch (e) {
+                    logError(e, 'Failed to handle button press');
+                }
+
+                return Clutter.EVENT_STOP;
+            });
+
+            this._buttonSignals.push({ button, signalId });
+        }
+
+        /**
+         * Handles clicks on the extension's panel button itself (clicks that
+         * don't land on the trackButton or control buttons).
          * @param {Clutter.Actor} actor - The actor that received the event.
          * @param {Clutter.Event} event - The event object.
          */
         _onExtensionClicked(actor, event) {
             const button = event.get_button();
-            
-            // Retrieve user setting for enabling middle-click
+
+            if (button === Clutter.BUTTON_MIDDLE)
+                this._handleMiddleClick();
+        }
+
+        _handleMiddleClick() {
             const enableMiddleClick = this._settings.get_boolean('enable-middle-click');
 
-            if (button === Clutter.BUTTON_MIDDLE && enableMiddleClick) {
-                // Only do Play/Pause if middle-click is enabled
-                this._sendMPRISCommand('PlayPause')
-                    .catch(() => {
-                        // If PlayPause fails, attempt to launch Spotify
-                        this._launchSpotify();
-                    });
-            }
+            if (!enableMiddleClick)
+                return;
+
+            this._sendMPRISCommand('PlayPause')
+                .catch(() => {
+                    this._launchSpotify();
+                });
         }
 
         /**
@@ -362,26 +415,7 @@ var SpotifyIndicator = GObject.registerClass(
 
             if (!spotifyFound) {
                 logDebug('Spotify window not found. Attempting to launch Spotify to show its window.');
-
-                try {
-                    // Create a new subprocess to execute the 'spotify' command
-                    const subprocess = Gio.Subprocess.new(
-                        ['spotify'],
-                        Gio.SubprocessFlags.NONE
-                    );
-
-                    // Run the subprocess async
-                    subprocess.wait_async(null, (proc, res) => {
-                        try {
-                            proc.wait_finish(res);
-                            logDebug('Spotify launched successfully to show its window.');
-                        } catch (e) {
-                            logError(e, 'Failed to launch Spotify to show its window.');
-                        }
-                    });
-                } catch (e) {
-                    logError(e, 'Error while attempting to launch Spotify subprocess.', e);
-                }
+                this._launchSpotifyProcess(() => {});
             }
         }
 
@@ -794,6 +828,25 @@ var SpotifyIndicator = GObject.registerClass(
                 this._showTrackInfoChangedId = null;
             }
 
+            if (this._maxWidthChangedId) {
+                this._settings.disconnect(this._maxWidthChangedId);
+                this._maxWidthChangedId = null;
+            }
+
+            // Disconnect button-press-event signals before their actors are
+            // destroyed below.
+            if (this._buttonSignals) {
+                for (const { button, signalId } of this._buttonSignals) {
+                    try {
+                        if (button && signalId)
+                            button.disconnect(signalId);
+                    } catch (_) {
+                        // Actor may already be gone; safe to ignore.
+                    }
+                }
+                this._buttonSignals = [];
+            }
+
             // Clear all active timeouts
             for (let timeoutID of this._activeTimeouts) {
                 clearTimeout(timeoutID);
@@ -824,18 +877,55 @@ var SpotifyIndicator = GObject.registerClass(
             super.destroy();
         }
 
+        /**
+         * Try to launch Spotify using the native command first, then fall back
+         * to `flatpak run com.spotify.Client` on failure.
+         * @param {Function} [callback] - Optional callback invoked once the
+         *     subprocess has been awaited (only when a callback is passed).
+         */
+        _launchSpotifyProcess(callback) {
+            let lastError = null;
+
+            const tryLaunch = (args) => {
+                try {
+                    const subprocess = Gio.Subprocess.new(args, Gio.SubprocessFlags.NONE);
+                    if (callback) {
+                        subprocess.wait_async(null, (proc, res) => {
+                            try {
+                                proc.wait_finish(res);
+                                logDebug('Spotify launched successfully to show its window.');
+                                callback();
+                            } catch (e) {
+                                logError(e, 'Failed to launch Spotify to show its window.');
+                            }
+                        });
+                    }
+                    return true;
+                } catch (e) {
+                    lastError = e;
+                    return false;
+                }
+            };
+
+            if (tryLaunch(['spotify'])) {
+                if (!callback)
+                    logDebug('Spotify launched successfully');
+                return;
+            }
+            logDebug('Native spotify not found, trying Flatpak');
+            if (tryLaunch(['flatpak', 'run', 'com.spotify.Client'])) {
+                if (!callback)
+                    logDebug('Spotify launched successfully');
+                return;
+            }
+            logError(lastError, 'Error while attempting to launch Spotify subprocess.');
+            if (callback)
+                callback();
+        }
+
         _launchSpotify() {
             logDebug('Attempting to launch Spotify');
-
-            try {
-                Gio.Subprocess.new(
-                    ['spotify'],
-                    Gio.SubprocessFlags.NONE
-                );
-                logDebug('Spotify launched successfully');
-            } catch (e) {
-                logError(e, 'Failed to launch Spotify');
-            }
+            this._launchSpotifyProcess();
         }
     }
 );
