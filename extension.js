@@ -21,7 +21,6 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Clutter from 'gi://Clutter';
-import Pango from 'gi://Pango';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
@@ -88,10 +87,9 @@ var SpotifyIndicator = GObject.registerClass(
             // Connect the 'button-press-event' to the updated handler
             this.connect('button-press-event', this._onExtensionClicked.bind(this));
 
-            // Connect to changes in 'show-spotify-icon' and 'show-track-info' and 'max-width' settings
+            // Connect to changes in 'show-spotify-icon' and 'show-track-info' settings
             this._showIconChangedId = this._settings.connect('changed::show-spotify-icon', this._onShowIconChanged.bind(this));
             this._showTrackInfoChangedId = this._settings.connect('changed::show-track-info', this._onShowTrackInfoChanged.bind(this));
-            this._maxWidthChangedId = this._settings.connect('changed::max-width', this._onMaxWidthChanged.bind(this));
         }
 
         /**
@@ -133,9 +131,9 @@ var SpotifyIndicator = GObject.registerClass(
                 });
 
                 // Connect the 'clicked' signal of each button to their respective handler functions
-                this.prevButton.connect('clicked', () => this._sendMPRISCommand('Previous'));
-                this.playPauseButton.connect('clicked', () => this._sendMPRISCommand('PlayPause'));
-                this.nextButton.connect('clicked', () => this._sendMPRISCommand('Next'));
+                this.prevButton.connect('button-press-event', (actor, event) => { if (event.get_button() === 1) this._sendMPRISCommand('Previous'); return Clutter.EVENT_STOP; });
+                this.playPauseButton.connect('button-press-event', (actor, event) => { if (event.get_button() === 1) this._sendMPRISCommand('PlayPause'); return Clutter.EVENT_STOP; });
+                this.nextButton.connect('button-press-event', (actor, event) => { if (event.get_button() === 1) this._sendMPRISCommand('Next'); return Clutter.EVENT_STOP; });
 
                 // Add buttons to the controlsBox
                 controlsBox.add_child(this.prevButton);
@@ -171,18 +169,13 @@ var SpotifyIndicator = GObject.registerClass(
             this.trackBox.add_child(this._createSeparator());
             
 
-            const maxWidth = this._settings.get_int('max-width');
 
             // Artist and Song Title label
             this.trackLabel = new St.Label({
                     text: _('No Track Playing'),
                     y_expand: true,
                     y_align: Clutter.ActorAlign.CENTER,
-                    style: maxWidth ? `max-width: ${maxWidth}px;` : '',
                 });
-
-            // Display the track label with ellipsis if it exceeds the maximum width
-            this.trackLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
 
             // Conditionally display the track info based on the setting
             this.trackLabel.visible = this._settings.get_boolean('show-track-info');
@@ -260,14 +253,6 @@ var SpotifyIndicator = GObject.registerClass(
                 this.trackLabel.visible = showInfo;
                 logDebug(`Track info visibility set to ${showInfo}`);
             }
-        }
-
-        _onMaxWidthChanged() {
-            const maxWidth = this._settings.get_int('max-width');
-            logDebug(`'max-width' changed to ${maxWidth}`);
-
-            this.trackLabel.style = `max-width: ${maxWidth}px;`;
-            logDebug(`Track label style set to ${this.trackLabel.style}`);
         }
 
         /**
@@ -872,7 +857,6 @@ export default class SpotifyControlsExtension extends Extension {
         this._volumeControlChangedId = this._settings.connect('changed::enable-volume-control', this._onSettingsChanged.bind(this));
         this._showSpotifyIconChangedId = this._settings.connect('changed::show-spotify-icon', this._onSettingsChanged.bind(this));
         this._showTrackInfoChangedId = this._settings.connect('changed::show-track-info', this._onSettingsChanged.bind(this));
-        this._maxWidthChangedId = this._settings.connect('changed::max-width', this._onSettingsChanged.bind(this));
         // (No need to connect a signal for minimize-on-second-click unless you
         // want to dynamically refresh the behavior mid-session. Typically not necessary.)
 
@@ -1016,11 +1000,6 @@ export default class SpotifyControlsExtension extends Extension {
         if (this._showTrackInfoChangedId) {
             this._settings.disconnect(this._showTrackInfoChangedId);
             this._showTrackInfoChangedId = null;
-        }
-
-        if (this._maxWidthChangedId) {
-            this._settings.disconnect(this._maxWidthChangedId);
-            this._maxWidthChangedId = null;
         }
 
         this._settings = null;
