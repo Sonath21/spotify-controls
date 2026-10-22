@@ -236,25 +236,11 @@ var SpotifyIndicator = GObject.registerClass(
             const showIcon = this._settings.get_boolean('show-spotify-icon');
             logDebug(`'show-spotify-icon' changed to ${showIcon}`);
 
+            // The icon is always created in _buildUI() and only destroyed after
+            // this handler has been disconnected, so toggling visibility is enough.
             if (this.spotifyIcon) {
                 this.spotifyIcon.visible = showIcon;
                 logDebug(`Spotify icon visibility set to ${showIcon}`);
-            } else if (showIcon) {
-                // If for some reason the icon wasn't created, create and add it
-                this.spotifyIcon = new St.Icon({
-                    gicon: Gio.icon_new_for_string(`${this.extensionPath}/icons/spotify.svg`),
-                    icon_size: 16,
-                    style_class: 'spotify-icon',
-                });
-                this.spotifyIcon.visible = showIcon;
-
-                // Add the Spotify icon to the UI
-                this.trackBox.add_child_before(this.spotifyIcon, this.trackButton);
-                this.trackBox.add_child_after(this.spotifyIcon, this._createSeparator());
-                this.trackBox.add_child_after(this.spotifyIcon, this._createSeparator());
-                this.trackBox.add_child_after(this.spotifyIcon, this._createSeparator());
-
-                logDebug('Spotify icon created and shown');
             }
         }
 
