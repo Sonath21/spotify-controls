@@ -19,8 +19,12 @@
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
-import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import { ExtensionPreferences, gettext as _, ngettext } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+
+const LICENSE_NAME = 'GNU General Public License v3.0 or later';
+const LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
 
 /**
  * Define the PositionItem GObject class for Indicator Position choices.
@@ -74,7 +78,10 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
         window.set_title(_('Spotify Controls Preferences'));
 
         // Create the main preferences page
-        const page = new Adw.PreferencesPage();
+        const page = new Adw.PreferencesPage({
+            title: _('Settings'),
+            icon_name: 'preferences-system-symbolic',
+        });
 
         /**
          * GENERAL SETTINGS GROUP
@@ -314,8 +321,147 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
         // Add the display group to the page
         page.add(displayGroup);
 
-        // Finally, add the page to the window and show
+        // Finally, add the pages to the window and show
         window.add(page);
+        window.add(this._buildAboutPage());
         window.show();
+    }
+
+    /**
+     * Builds the About page: name, version, website, contributors and license.
+     * @returns {Adw.PreferencesPage} - The About page.
+     */
+    _buildAboutPage() {
+        const aboutPage = new Adw.PreferencesPage({
+            title: _('About'),
+            icon_name: 'help-about-symbolic',
+        });
+
+        /**
+         * EXTENSION INFO GROUP
+         */
+        const infoGroup = new Adw.PreferencesGroup({
+            title: this.metadata.name,
+            description: this.metadata.description,
+        });
+
+        const versionRow = new Adw.ActionRow({ title: _('Version') });
+        versionRow.add_suffix(new Gtk.Label({
+            label: `${this.metadata.version ?? ''}`,
+            valign: Gtk.Align.CENTER,
+        }));
+        infoGroup.add(versionRow);
+
+        if (this.metadata.url)
+            infoGroup.add(this._createLinkRow(_('Website'), this.metadata.url));
+
+        aboutPage.add(infoGroup);
+
+        /**
+         * CONTRIBUTORS GROUP
+         * Sections come from authors.ini, translators from the
+         * 'translator-credits' gettext entry. Empty roles are hidden.
+         */
+        // Translators: Replace with your name(s), one per line, optionally
+        // followed by <email>. Do not translate literally.
+        const translatorCredits = _('translator-credits');
+        const roles = [
+            ...this._readAuthors(),
+            [_('Translators'), translatorCredits === 'translator-credits'
+                ? [] : this._parseNameList(translatorCredits)],
+        ].filter(([, names]) => names.length > 0);
+
+        if (roles.length > 0) {
+            const contributorsGroup = new Adw.PreferencesGroup({
+                title: _('Contributors'),
+            });
+
+            for (const [role, names] of roles) {
+                const roleRow = new Adw.ExpanderRow({
+                    title: role,
+                    subtitle: ngettext('%d person', '%d people', names.length)
+                        .replace('%d', names.length),
+                });
+
+                for (const name of names)
+                    roleRow.add_row(new Adw.ActionRow({ title: name }));
+
+                contributorsGroup.add(roleRow);
+            }
+
+            aboutPage.add(contributorsGroup);
+        }
+
+        /**
+         * LICENSE GROUP
+         */
+        const licenseGroup = new Adw.PreferencesGroup({
+            title: _('License'),
+        });
+        licenseGroup.add(this._createLinkRow(LICENSE_NAME, LICENSE_URL));
+        aboutPage.add(licenseGroup);
+
+        return aboutPage;
+    }
+
+    /**
+     * Reads authors.ini (GLib.KeyFile) in the extension directory. Each group
+     * is a section, with its people in a ';'-separated 'Names' list.
+     * @returns {Array<[string, string[]]>} - Sections in file order, each as
+     *     [title, names], or an empty list if the file is missing.
+     */
+    _readAuthors() {
+        const keyFile = new GLib.KeyFile();
+        try {
+            keyFile.load_from_file(`${this.path}/authors.ini`, GLib.KeyFileFlags.NONE);
+        } catch (e) {
+            return [];
+        }
+
+        const [groups] = keyFile.get_groups();
+        return groups.map(group => {
+            let names;
+            try {
+                names = keyFile.get_string_list(group, 'Names');
+            } catch (e) {
+                names = [];
+            }
+            return [group, this._parseNameList(names.join('\n'))];
+        });
+    }
+
+    /**
+     * Parses one name per line, skipping blank lines and '#' comments and
+     * dropping any trailing '<email>'.
+     * @param {string} text - The text to parse.
+     * @returns {string[]} - The names.
+     */
+    _parseNameList(text) {
+        return text.split('\n')
+            .map(line => line.replace(/<[^>]*>/, '').trim())
+            .filter(line => line && !line.startsWith('#'));
+    }
+
+    /**
+     * Creates a row with a title, the URL as subtitle and a link button.
+     * @param {string} title - The row title.
+     * @param {string} url - The URL to open.
+     * @returns {Adw.ActionRow} - The row.
+     */
+    _createLinkRow(title, url) {
+        const row = new Adw.ActionRow({ title, subtitle: url });
+        const linkButton = new Gtk.LinkButton({
+            uri: url,
+            icon_name: 'external-link-symbolic',
+            tooltip_text: _('Open in browser'),
+            valign: Gtk.Align.CENTER,
+        });
+        // Icon-only button: give screen readers a name that says where it goes
+        // Translators: %s is the link's title, e.g. "Website" or the license name
+        const accessibleLabel = _('Open %s in browser').replace('%s', title);
+        linkButton.update_property([Gtk.AccessibleProperty.LABEL], [accessibleLabel]);
+        row.add_suffix(linkButton);
+        row.activatable_widget = linkButton;
+        return row;
     }
 }

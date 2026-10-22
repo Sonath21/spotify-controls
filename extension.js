@@ -69,7 +69,7 @@ var SpotifyIndicator = GObject.registerClass(
          * @param {Gio.Settings} settings - The settings object for the extension.
          */
         _init(extensionPath, controlsPosition, settings) {
-            super._init(0.0, 'Spotify Controls');
+            super._init(0.0, _('Spotify Controls'));
             logDebug('SpotifyIndicator initialized');
 
             this.controlsPosition = controlsPosition;
@@ -125,14 +125,17 @@ var SpotifyIndicator = GObject.registerClass(
                 // Create the control buttons: Previous, Play/Pause, Next
                 this.prevButton = new St.Button({
                     style_class: 'spotify-status-icon',
+                    accessible_name: _('Previous track'),
                     child: new St.Icon({ icon_name: 'media-skip-backward-symbolic' }),
                 });
                 this.playPauseButton = new St.Button({
                     style_class: 'spotify-status-icon',
-                    child: new St.Icon({ icon_name: 'media-playback-pause-symbolic' }), 
+                    accessible_name: _('Pause'),
+                    child: new St.Icon({ icon_name: 'media-playback-pause-symbolic' }),
                 });
                 this.nextButton = new St.Button({
                     style_class: 'spotify-status-icon',
+                    accessible_name: _('Next track'),
                     child: new St.Icon({ icon_name: 'media-skip-forward-symbolic' }),
                 });
 
@@ -199,6 +202,9 @@ var SpotifyIndicator = GObject.registerClass(
 
             // add trackLabel to the UI
             this.trackBox.add_child(this.trackLabel);
+
+            // Screen readers announce the track button by the current track info
+            this.trackButton.label_actor = this.trackLabel;
 
             // Add scroll event listener to widget for volume control
             if (this._settings.get_boolean('enable-volume-control')) {
@@ -675,6 +681,9 @@ var SpotifyIndicator = GObject.registerClass(
                 : 'media-playback-start-symbolic';
             if (this.playPauseButton) {
                 this.playPauseButton.child.icon_name = iconName;
+                this.playPauseButton.accessible_name = (playbackStatus === 'Playing')
+                    ? _('Pause')
+                    : _('Play');
             }
             logDebug(`Updated play/pause icon to ${iconName}`);
         }
