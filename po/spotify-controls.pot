@@ -1,0 +1,235 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the spotify-controls package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: spotify-controls\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-22 23:25+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: extension.js:72
+msgid "Spotify Controls"
+msgstr ""
+
+#: extension.js:128
+msgid "Previous track"
+msgstr ""
+
+#: extension.js:133 extension.js:685
+msgid "Pause"
+msgstr ""
+
+#: extension.js:138
+msgid "Next track"
+msgstr ""
+
+#: extension.js:191
+msgid "No Track Playing"
+msgstr ""
+
+#: extension.js:634
+msgid "Unknown Artist"
+msgstr ""
+
+#: extension.js:654
+msgid "Unknown Title"
+msgstr ""
+
+#: extension.js:686
+msgid "Play"
+msgstr ""
+
+#: prefs.js:78
+msgid "Spotify Controls Preferences"
+msgstr ""
+
+#: prefs.js:82
+msgid "Settings"
+msgstr ""
+
+#: prefs.js:90
+msgid "General Settings"
+msgstr ""
+
+#: prefs.js:97
+msgid "Far Left"
+msgstr ""
+
+#: prefs.js:98
+msgid "Mid Left"
+msgstr ""
+
+#: prefs.js:99
+msgid "Rightmost Left"
+msgstr ""
+
+#: prefs.js:100
+msgid "Middle Left"
+msgstr ""
+
+#: prefs.js:101
+msgid "Center"
+msgstr ""
+
+#: prefs.js:102
+msgid "Middle Right"
+msgstr ""
+
+#: prefs.js:103
+msgid "Leftmost Right"
+msgstr ""
+
+#: prefs.js:104
+msgid "Mid Right"
+msgstr ""
+
+#: prefs.js:105
+msgid "Far Right"
+msgstr ""
+
+#: prefs.js:112
+msgid "Indicator Position"
+msgstr ""
+
+#: prefs.js:113
+msgid "Select the position of the Spotify controls in the top bar"
+msgstr ""
+
+#: prefs.js:136
+msgid "Left"
+msgstr ""
+
+#: prefs.js:137
+msgid "Right"
+msgstr ""
+
+#: prefs.js:144
+msgid "Playback Controls Position"
+msgstr ""
+
+#: prefs.js:145
+msgid "Select whether the playback controls should appear on the left or right"
+msgstr ""
+
+#: prefs.js:168
+msgid "Enable Volume Control"
+msgstr ""
+
+#: prefs.js:169
+msgid ""
+"Toggle the volume control feature using the scroll wheel over the song title"
+msgstr ""
+
+#: prefs.js:187
+msgid "Enable Middle Click Play/Pause"
+msgstr ""
+
+#: prefs.js:188
+msgid "Allows toggling the current track with a middle-click on the extension."
+msgstr ""
+
+#: prefs.js:206
+msgid "Minimize on Second Click"
+msgstr ""
+
+#: prefs.js:207
+msgid ""
+"If true, clicking the extension again minimizes Spotify if it is already in "
+"the foreground."
+msgstr ""
+
+#: prefs.js:229
+msgid "Display Options"
+msgstr ""
+
+#: prefs.js:236
+msgid "Show Playback Controls"
+msgstr ""
+
+#: prefs.js:237
+msgid ""
+"Toggle the visibility of the playback controls (Previous, Play/Pause, Next)"
+msgstr ""
+
+#: prefs.js:255
+msgid "Show Spotify Icon"
+msgstr ""
+
+#: prefs.js:256
+msgid "Toggle the visibility of the Spotify logo in the top bar"
+msgstr ""
+
+#: prefs.js:274
+msgid "Show Artist/Track Info"
+msgstr ""
+
+#: prefs.js:275
+msgid ""
+"Toggle the visibility of the Artist and Track information in the top bar"
+msgstr ""
+
+#: prefs.js:293
+msgid "Maximum Width (pixels)"
+msgstr ""
+
+#: prefs.js:294
+msgid "Limit how wide the extension label can be in the top bar (0 = no limit)"
+msgstr ""
+
+#: prefs.js:336
+msgid "About"
+msgstr ""
+
+#: prefs.js:348
+msgid "Version"
+msgstr ""
+
+#: prefs.js:356
+msgid "Website"
+msgstr ""
+
+#. Translators: Replace with your name(s), one per line, optionally
+#. followed by <email>. Do not translate literally.
+#: prefs.js:367
+msgid "translator-credits"
+msgstr ""
+
+#: prefs.js:370
+msgid "Translators"
+msgstr ""
+
+#: prefs.js:376
+msgid "Contributors"
+msgstr ""
+
+#: prefs.js:382
+#, javascript-format
+msgid "%d person"
+msgid_plural "%d people"
+msgstr[0] ""
+msgstr[1] ""
+
+#: prefs.js:399
+msgid "License"
+msgstr ""
+
+#: prefs.js:456
+msgid "Open in browser"
+msgstr ""
+
+#. Translators: %s is the link's title, e.g. "Website" or the license name
+#: prefs.js:461
+#, javascript-format
+msgid "Open %s in browser"
+msgstr ""
