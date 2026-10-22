@@ -54,14 +54,6 @@
         Toggles whether the user can Play/Pause with a middle-click on the extension icon.
       </description>
     </key>    
-    <key name="minimize-on-second-click" type="b">
-      <default>true</default>
-      <summary>Minimize Spotify on second click</summary>
-      <description>
-        If toggled, a second click on the extension will minimize Spotify if it is already in the foreground.
-        If un-toggled, clicking the extension again while Spotify is on top does nothing.
-      </description>
-    </key>
     <key name="max-width" type="i">
       <default>0</default>
       <summary>Maximum width for the extension label</summary>

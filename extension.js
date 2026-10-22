@@ -25,6 +25,7 @@ import Pango from 'gi://Pango';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -67,8 +68,9 @@ var SpotifyIndicator = GObject.registerClass(
          * @param {string} extensionPath - The path to the extension's directory.
          * @param {string} controlsPosition - Position of playback controls ('left' or 'right').
          * @param {Gio.Settings} settings - The settings object for the extension.
+         * @param {Function} openPreferences - Opens the extension's preferences window.
          */
-        _init(extensionPath, controlsPosition, settings) {
+        _init(extensionPath, controlsPosition, settings, openPreferences) {
             super._init(0.0, 'Spotify Controls');
             logDebug('SpotifyIndicator initialized');
 
@@ -87,6 +89,7 @@ var SpotifyIndicator = GObject.registerClass(
             this.extensionPath = extensionPath;
 
             this._buildUI(extensionPath);
+            this._buildMenu(openPreferences);
             this._monitorSpotifyPresence();
 
             // Connect the 'button-press-event' to the updated handler
@@ -159,7 +162,7 @@ var SpotifyIndicator = GObject.registerClass(
             });
             this._connectActionButton(
                 this.trackButton,
-                () => this._activateSpotifyWindow(),
+                () => this._onTrackButtonPressed(),
                 () => this._handleMiddleClick()
             );
             
@@ -226,6 +229,23 @@ var SpotifyIndicator = GObject.registerClass(
             }
 
             logDebug('UI built with controls positioned to the ' + this.controlsPosition);
+        }
+
+        /**
+         * Builds the popup menu shown when the indicator is clicked.
+         * The first entry is the default action.
+         * @param {Function} openPreferences - Opens the extension's preferences window.
+         */
+        _buildMenu(openPreferences) {
+            const toggleItem = new PopupMenu.PopupMenuItem(_('Toggle visibility'));
+            toggleItem.connect('activate', () => this._toggleSpotifyWindow());
+            this.menu.addMenuItem(toggleItem);
+
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+            const prefsItem = new PopupMenu.PopupMenuItem(_('Preferences'));
+            prefsItem.connect('activate', () => openPreferences());
+            this.menu.addMenuItem(prefsItem);
         }
 
         /**
@@ -345,77 +365,65 @@ var SpotifyIndicator = GObject.registerClass(
         }
 
         /**
-         * Activates (or minimizes) the Spotify window, depending on user preferences
-         * and the current window state.
+         * Handles a primary press on the track button. A single click opens the
+         * menu once the system double-click time (org.gnome.desktop.peripherals.mouse
+         * double-click) has passed; a double click runs
+         * the menu's default action (toggle visibility) instead.
          */
-        _activateSpotifyWindow() {
-            logDebug('Attempting to activate Spotify window');
-
-            // Retrieve the user setting for whether to minimize on second click
-            const minimizeOnSecondClick = this._settings.get_boolean('minimize-on-second-click');
-            logDebug(`minimizeOnSecondClick = ${minimizeOnSecondClick}`);
-
-            // Retrieve all window actors
-            let windowActors = global.get_window_actors();
-
-            // Flag to check if Spotify window is found
-            let spotifyFound = false;
-
-            for (let actor of windowActors) {
-                let window = actor.get_meta_window();
-                let wmClass = window.get_wm_class();
-
-                // Log details for debugging
-                logDebug(`Window WM_CLASS: ${JSON.stringify(wmClass)} (Type: ${typeof wmClass})`);
-                logDebug(`Window Title: ${window.get_title()} (Type: ${typeof window.get_title()})`);
-                logDebug(`Window Workspace: ${window.get_workspace()} (Type: ${typeof window.get_workspace()})`);
-
-                let isSpotify = false;
-
-                if (Array.isArray(wmClass)) {
-                    // If wmClass is an array, check if any element matches 'spotify'
-                    isSpotify = wmClass.some(cls => cls.toLowerCase() === 'spotify');
-                } else if (typeof wmClass === 'string') {
-                    // If wmClass is a string, check if it matches 'spotify'
-                    isSpotify = wmClass.toLowerCase() === 'spotify';
-                }
-
-                if (isSpotify) {
-                    // Validate that 'window' has the 'activate' method
-                    if (typeof window.activate !== 'function') {
-                        logDebug('Window does not have an activate method. Skipping.');
-                        continue;
-                    }
-
-                    try {
-                        if (window.minimized) {
-                            // If the window is minimized, unminimize and activate
-                            window.unminimize();
-                            logDebug("Spotify window unminimized");
-                            window.activate(global.get_current_time());
-                            logDebug("Spotify window activated");
-                        } else {
-                            // If it's not minimized and the user wants to
-                            // minimize on second click, do so. Otherwise, do nothing.
-                            if (minimizeOnSecondClick) {
-                                window.minimize();
-                                logDebug("Spotify window minimized");
-                            } else {
-                                logDebug("Spotify already in foreground; doing nothing.");
-                            }
-                        }
-
-                        spotifyFound = true;
-                        break; // Exit once we handle the Spotify window
-                    } catch (e) {
-                        logError(e, 'Failed to activate Spotify window');
-                    }
-                }
+        _onTrackButtonPressed() {
+            if (this._singleClickId) {
+                GLib.source_remove(this._singleClickId);
+                this._singleClickId = null;
+                this._toggleSpotifyWindow();
+                return;
             }
 
-            if (!spotifyFound) {
+            this._mouseSettings ??= new Gio.Settings({ schema_id: 'org.gnome.desktop.peripherals.mouse' });
+            const doubleClickTime = this._mouseSettings.get_int('double-click');
+            this._singleClickId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, doubleClickTime, () => {
+                this._singleClickId = null;
+                this.menu.open();
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+
+        /**
+         * Finds the Spotify window, if any.
+         * @returns {Meta.Window|null} - The Spotify window, or null if not found.
+         */
+        _findSpotifyWindow() {
+            for (const actor of global.get_window_actors()) {
+                const window = actor.get_meta_window();
+                const wmClass = window.get_wm_class();
+
+                if (typeof wmClass === 'string' && wmClass.toLowerCase() === 'spotify')
+                    return window;
+            }
+
+            return null;
+        }
+
+        /**
+         * Toggles the Spotify window: minimizes it if it has focus, otherwise
+         * brings it to the front. Launches Spotify if no window is found.
+         */
+        _toggleSpotifyWindow() {
+            const window = this._findSpotifyWindow();
+
+            if (!window) {
                 logDebug('Spotify window not found. Attempting to launch Spotify to show its window.');
                 this._launchSpotifyProcess(() => {});
+                return;
+            }
+
+            if (window.has_focus() && !window.minimized) {
+                window.minimize();
+                logDebug('Spotify window minimized');
+            } else {
+                if (window.minimized)
+                    window.unminimize();
+                window.activate(global.get_current_time());
+                logDebug('Spotify window activated');
             }
         }
 
@@ -847,6 +855,11 @@ var SpotifyIndicator = GObject.registerClass(
                 this._buttonSignals = [];
             }
 
+            if (this._singleClickId) {
+                GLib.source_remove(this._singleClickId);
+                this._singleClickId = null;
+            }
+
             // Clear all active timeouts
             for (let timeoutID of this._activeTimeouts) {
                 clearTimeout(timeoutID);
@@ -963,8 +976,6 @@ export default class SpotifyControlsExtension extends Extension {
         this._showSpotifyIconChangedId = this._settings.connect('changed::show-spotify-icon', this._onSettingsChanged.bind(this));
         this._showTrackInfoChangedId = this._settings.connect('changed::show-track-info', this._onSettingsChanged.bind(this));
         this._maxWidthChangedId = this._settings.connect('changed::max-width', this._onSettingsChanged.bind(this));
-        // (No need to connect a signal for minimize-on-second-click unless you
-        // want to dynamically refresh the behavior mid-session. Typically not necessary.)
 
         this._updateIndicator();
     }
@@ -1004,8 +1015,9 @@ export default class SpotifyControlsExtension extends Extension {
             controlsPosition = 'right'; // Default to 'right' if invalid
         }
 
-        // Pass 'extensionPath', 'controlsPosition', and 'settings' to SpotifyIndicator
-        spotifyIndicator = new SpotifyIndicator(this.path, controlsPosition, this._settings);
+        // Pass 'extensionPath', 'controlsPosition', 'settings' and a preferences opener to SpotifyIndicator
+        spotifyIndicator = new SpotifyIndicator(this.path, controlsPosition, this._settings,
+            () => this.openPreferences());
 
         // Determine which box (left, center, right) to add the indicator to and its offset
         let boxName;

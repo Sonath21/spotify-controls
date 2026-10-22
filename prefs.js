@@ -192,26 +192,6 @@ export default class SpotifyControlsPrefs extends ExtensionPreferences {
 
         generalGroup.add(enableMiddleClickSwitch);
 
-        /**
-         * MINIMIZE ON SECOND CLICK TOGGLE
-         */
-        const minimizeOnSecondClickSwitch = new Adw.SwitchRow({
-            title: _('Minimize on Second Click'),
-            subtitle: _('If true, clicking the extension again minimizes Spotify if it is already in the foreground.'),
-            activatable: true,
-            active: settings.get_boolean('minimize-on-second-click'),
-        });
-
-        // Bind to the new key
-        settings.bind(
-            'minimize-on-second-click',
-            minimizeOnSecondClickSwitch,
-            'active',
-            Gio.SettingsBindFlags.DEFAULT
-        );
-
-        generalGroup.add(minimizeOnSecondClickSwitch);
-
         // Add the general group to the main page
         page.add(generalGroup);
 
